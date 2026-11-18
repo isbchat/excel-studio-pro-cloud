@@ -1,0 +1,3460 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Excel Studio Pro — Desktop Spreadsheet</title>
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; font-family: 'Inter', sans-serif; }
+    body { margin: 0; overflow: hidden; user-select: none; }
+    .mono { font-family: 'JetBrains Mono', monospace; }
+    .grid-container {
+      overflow: auto;
+      position: relative;
+      background: var(--bg-grid, #f8fafc);
+      scroll-behavior: auto;
+    }
+    table.excel-table {
+      border-collapse: separate;
+      border-spacing: 0;
+      table-layout: fixed;
+    }
+    table.excel-table th, table.excel-table td {
+      border-right: 1px solid var(--border-cell, #cbd5e1);
+      border-bottom: 1px solid var(--border-cell, #cbd5e1);
+      padding: 0;
+      margin: 0;
+    }
+    table.excel-table th.col-hdr {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      background: var(--bg-hdr, #f1f5f9);
+      color: var(--txt-hdr, #334155);
+      font-weight: 600;
+      font-size: 12px;
+      height: 28px;
+      text-align: center;
+      cursor: pointer;
+    }
+    table.excel-table th.col-hdr:hover {
+      background: #dcfce7;
+      color: #166534;
+    }
+    table.excel-table th.col-hdr.active-hdr,
+    table.excel-table th.row-hdr.active-hdr {
+      background: #bbf7d0 !important;
+      color: #14532d !important;
+      font-weight: 700;
+    }
+    table.excel-table th.row-hdr {
+      position: sticky;
+      left: 0;
+      z-index: 15;
+      background: var(--bg-hdr, #f1f5f9);
+      color: var(--txt-hdr, #475569);
+      font-weight: 600;
+      font-size: 11px;
+      width: 52px;
+      min-width: 52px;
+      text-align: center;
+      cursor: pointer;
+    }
+    table.excel-table th.row-hdr:hover {
+      background: #dcfce7;
+      color: #166534;
+    }
+    table.excel-table th.corner-hdr {
+      position: sticky;
+      top: 0;
+      left: 0;
+      z-index: 35;
+      width: 52px;
+      min-width: 52px;
+      background: var(--bg-hdr, #e2e8f0);
+      cursor: pointer;
+    }
+    /* Wide, clearly visible Column & Row Resize Handles */
+    .col-resize-handle {
+      position: absolute;
+      top: 0;
+      right: -2px;
+      width: 10px;
+      height: 100%;
+      cursor: col-resize !important;
+      z-index: 30;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .col-resize-handle::after {
+      content: "";
+      width: 2px;
+      height: 14px;
+      background: #94a3b8;
+      border-radius: 1px;
+      transition: all 0.15s;
+    }
+    .col-resize-handle:hover::after {
+      background: #107c41;
+      height: 100%;
+      width: 3px;
+    }
+    .row-resize-handle {
+      position: absolute;
+      left: 0;
+      bottom: -2px;
+      width: 100%;
+      height: 8px;
+      cursor: row-resize !important;
+      z-index: 30;
+    }
+    .row-resize-handle:hover {
+      background: rgba(16, 124, 65, 0.45);
+    }
+    td.excel-cell {
+      width: 115px;
+      min-width: 24px;
+      max-width: 115px;
+      height: 28px;
+      background: var(--bg-cell, #ffffff);
+      color: var(--txt-cell, #0f172a);
+      font-size: 13px;
+      position: relative;
+      cursor: cell;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      padding: 2px 6px;
+      vertical-align: middle;
+    }
+    td.excel-cell.wrap-cell {
+      white-space: normal;
+      word-break: break-word;
+      line-height: 1.25;
+    }
+    td.excel-cell.resize-right-hover {
+      cursor: col-resize !important;
+      border-right: 2px solid #107c41 !important;
+    }
+    td.excel-cell.resize-bottom-hover {
+      cursor: row-resize !important;
+      border-bottom: 2px solid #107c41 !important;
+    }
+    td.excel-cell.resize-corner-hover {
+      cursor: nwse-resize !important;
+      border-right: 2px solid #107c41 !important;
+      border-bottom: 2px solid #107c41 !important;
+    }
+    .freeze-row-1 table.excel-table tbody tr:first-child td,
+    .freeze-row-1 table.excel-table tbody tr:first-child th.row-hdr {
+      position: sticky;
+      top: 28px;
+      z-index: 18;
+      box-shadow: 0 2px 3px -1px rgba(0,0,0,0.12);
+    }
+    .freeze-col-a table.excel-table tbody td[data-col="0"] {
+      position: sticky;
+      left: 52px;
+      z-index: 14;
+      box-shadow: 2px 0 3px -1px rgba(0,0,0,0.08);
+    }
+    td.excel-cell.selected-cell {
+      outline: 2px solid #107c41;
+      outline-offset: -2px;
+      z-index: 10;
+    }
+    /* Bottom-right corner resize/fill square on selected cell */
+    td.excel-cell.selected-cell::after {
+      content: "";
+      position: absolute;
+      right: 0;
+      bottom: 0;
+      width: 7px;
+      height: 7px;
+      background: #107c41;
+      border: 1px solid #ffffff;
+      cursor: nwse-resize;
+      z-index: 22;
+    }
+    td.excel-cell.in-range {
+      background-color: rgba(16, 124, 65, 0.12) !important;
+    }
+    td.excel-cell input.cell-editor {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      border: none;
+      outline: 2px solid #107c41;
+      padding: 2px 6px;
+      font-size: 13px;
+      background: #ffffff;
+      color: #0f172a;
+      z-index: 28;
+    }
+    .cell-databar {
+      position: absolute;
+      left: 1px;
+      top: 2px;
+      bottom: 2px;
+      background: rgba(16, 185, 129, 0.24);
+      border-left: 3px solid #10b981;
+      pointer-events: none;
+      z-index: 1;
+      border-radius: 2px;
+    }
+    .cell-text-layer {
+      position: relative;
+      z-index: 2;
+    }
+    .cell-img-preview {
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+      display: block;
+      margin: 0 auto;
+      border-radius: 3px;
+    }
+    .dark-theme {
+      --bg-grid: #0f172a;
+      --border-cell: #334155;
+      --bg-hdr: #1e293b;
+      --txt-hdr: #cbd5e1;
+      --bg-cell: #0f172a;
+      --txt-cell: #f8fafc;
+    }
+    .no-gridlines table.excel-table td {
+      border-right-color: transparent;
+      border-bottom-color: transparent;
+    }
+    /* Floating resize tooltip */
+    #resizeTooltip {
+      position: fixed;
+      background: #0f172a;
+      color: #ffffff;
+      font-size: 11px;
+      font-family: 'JetBrains Mono', monospace;
+      padding: 3px 8px;
+      border-radius: 4px;
+      pointer-events: none;
+      z-index: 100;
+      display: none;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.25);
+    }
+    ::-webkit-scrollbar { width: 11px; height: 11px; }
+    ::-webkit-scrollbar-track { background: #f1f5f9; }
+    ::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 5px; border: 2px solid #f1f5f9; }
+    ::-webkit-scrollbar-thumb:hover { background: #64748b; }
+  </style>
+</head>
+<body class="bg-slate-100 text-slate-900 flex flex-col h-screen w-screen overflow-hidden" id="appBody">
+
+  <div id="cloudAuthGate" style="position:fixed;inset:0;z-index:10000;display:flex;align-items:center;justify-content:center;padding:24px;background:rgba(15,23,42,.78);">
+    <section style="width:min(440px,100%);padding:30px 26px;background:#fff;border-radius:20px;box-shadow:0 24px 70px rgba(0,0,0,.28);text-align:center;color:#0f172a;">
+      <div style="width:54px;height:54px;margin:0 auto 14px;border-radius:16px;background:#dcfce7;color:#166534;display:flex;align-items:center;justify-content:center;font-size:26px;font-weight:800;">X</div>
+      <h1 style="margin:0 0 8px;font-size:23px;font-weight:800;">Excel Studio Pro</h1>
+      <p style="margin:0 0 20px;color:#475569;font-size:14px;line-height:1.55;">Google से sign in करें। आपकी workbook आपके Firebase खाते में save होगी और अगली बार login पर वापस खुलेगी।</p>
+      <div id="cloudGoogleButtonContainer" style="min-height:44px;display:flex;justify-content:center;"></div>
+      <p id="cloudAuthMessage" style="min-height:38px;margin:14px 0 8px;color:#475569;font-size:12px;line-height:1.5;">Google sign-in तैयार हो रहा है…</p>
+      <button id="cloudRetryButton" onclick="retryExcelStudioCloudLoad()" style="display:none;margin:6px auto 0;padding:9px 16px;border:0;border-radius:10px;background:#0f766e;color:#fff;font-weight:700;cursor:pointer;">Cloud sync फिर कोशिश करें</button>
+      <p style="margin:18px 0 0;color:#64748b;font-size:11px;line-height:1.5;">आपकी workbook आपके Google/Firebase UID के अंतर्गत निजी रूप से रखी जाएगी।</p>
+    </section>
+  </div>
+
+
+  <!-- FLOATING RESIZE DIMENSION TOOLTIP -->
+  <div id="resizeTooltip">W: 120px | H: 28px</div>
+
+  <!-- TOP EXCEL ULTRA GREEN HEADER BAR -->
+  <header class="bg-gradient-to-r from-[#0c5e31] via-[#107c41] to-[#0f6a38] text-white px-3 py-1.5 flex items-center justify-between shadow-sm shrink-0">
+    <div class="flex items-center gap-2.5">
+      <div class="w-7 h-7 rounded bg-amber-400 text-slate-950 flex items-center justify-center font-extrabold text-xs tracking-tighter shadow">XLS+</div>
+      <div>
+        <div class="flex items-center gap-2">
+          <span class="font-bold text-sm tracking-tight" id="workbookTitle">Excel Studio Pro Ultra</span>
+          <span class="text-[10px] bg-emerald-950/80 border border-emerald-400/30 px-2 py-0.5 rounded-full font-medium text-emerald-200" id="gridDimBadge">∞ Infinite Grid</span>
+        </div>
+      </div>
+      <!-- Quick Access Buttons -->
+      <div class="flex items-center gap-1 ml-2 border-l border-white/20 pl-2.5 flex-wrap">
+        <button onclick="addNewBlankPage()" title="नया खाली पेज खोलें (Add New Blank Sheet)" class="bg-white text-[#107c41] hover:bg-emerald-50 font-bold px-2.5 py-1 rounded text-xs flex items-center gap-1 shadow-sm">📄 + नया पेज</button>
+        <button onclick="openModal('newPageModal')" title="नई खाली वर्कबुक या टेम्पलेट पेज खोलें" class="bg-emerald-900/90 hover:bg-emerald-950 text-white border border-white/25 px-2 py-1 rounded text-xs flex items-center gap-1">🗂️ नई फ़ाइल</button>
+        <button onclick="undoAction()" title="Undo (Ctrl+Z)" class="hidden md:flex px-2 py-1 rounded hover:bg-white/15 text-xs items-center gap-1">↩ Undo</button>
+        <button onclick="redoAction()" title="Redo (Ctrl+Y)" class="hidden md:flex px-2 py-1 rounded hover:bg-white/15 text-xs items-center gap-1">↪ Redo</button>
+        <button onclick="saveWorkbookLocal()" title="Save locally and sync to your Google account" class="hidden sm:flex px-2 py-1 rounded hover:bg-white/15 text-xs items-center gap-1">💾 Save</button>
+        <button onclick="exportExcelXLSX()" title="Download Real Microsoft Excel (.xlsx) File" class="bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold px-2.5 py-1 rounded text-xs flex items-center gap-1 shadow-sm">📥 Save Excel (.xlsx)</button>
+        <button onclick="exportCSV()" title="Download CSV" class="hidden lg:flex px-2 py-1 rounded hover:bg-white/15 text-xs items-center gap-1">⬇ CSV</button>
+      </div>
+    </div>
+
+    <!-- Search, AI Analyst, Kanban, Help & GOOGLE PROFILE LOGIN ICON -->
+    <div class="flex items-center gap-1.5">
+      <div class="relative hidden lg:block">
+        <input type="text" id="globalSearchInput" oninput="filterRowsBySearch(this.value)" placeholder="🔍 शीट में खोजें (Search cells)..." class="bg-white/15 placeholder-white/75 text-white text-xs rounded px-2.5 py-1 w-44 focus:outline-none focus:bg-white focus:text-slate-900 focus:placeholder-slate-400 transition">
+      </div>
+      <button onclick="openAICopilotModal()" class="bg-gradient-to-r from-fuchsia-500 to-indigo-600 hover:from-fuchsia-400 hover:to-indigo-500 text-white font-semibold text-xs px-2.5 py-1 rounded shadow-sm flex items-center gap-1 transition">
+        <span>🤖 AI Copilot</span>
+      </button>
+      <button onclick="toggleKanbanView()" id="btnKanbanToggle" class="bg-white/15 hover:bg-white/25 text-white text-xs px-2.5 py-1 rounded transition font-medium">
+        📋 Kanban View
+      </button>
+      <button onclick="openModal('helpModal')" class="bg-white/15 hover:bg-white/25 text-white text-xs px-2 py-1 rounded transition" title="Formula Guide">
+        ❓ सूत्र गाइड
+      </button>
+
+      <span id="cloudSyncStatus" class="hidden sm:inline text-[10px] font-semibold text-white/85">Google sign-in required</span>
+
+      <!-- GOOGLE CLOUD LOGIN PROFILE AVATAR BUTTON -->
+      <button onclick="openModal('googleAuthModal')" id="googleProfileBtn" title="Google Cloud Login & Sync Profile" class="ml-1 flex items-center gap-1.5 bg-white text-slate-800 hover:bg-slate-100 pl-1.5 pr-2.5 py-0.5 rounded-full shadow-sm border border-white/40 transition">
+        <div class="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center border border-slate-200 relative" id="googleAvatarCircle">
+          <!-- Google 4-color G SVG icon -->
+          <svg class="w-3.5 h-3.5" viewBox="0 0 24 24">
+            <path fill="#EA4335" d="M12 5c1.6 0 3 .6 4.1 1.7l3.1-3.1C17.3 1.8 14.8 1 12 1 7.4 1 3.5 3.6 1.6 7.4l3.7 2.8C6.2 7.2 8.9 5 12 5z"/>
+            <path fill="#4285F4" d="M23.5 12.3c0-.8-.1-1.6-.2-2.3H12v4.5h6.5c-.3 1.5-1.1 2.8-2.4 3.6l3.7 2.9c2.2-2 3.7-5 3.7-8.7z"/>
+            <path fill="#FBBC05" d="M5.3 14.8c-.2-.8-.4-1.6-.4-2.5s.2-1.7.4-2.5L1.6 7C.6 9 0 11.2 0 13.5s.6 4.5 1.6 6.5l3.7-2.9z"/>
+            <path fill="#34A853" d="M12 24c3.2 0 6-1.1 8-3l-3.7-2.9c-1.1.7-2.5 1.2-4.3 1.2-3.1 0-5.8-2.1-6.7-5l-3.7 2.8C3.5 21.4 7.4 24 12 24z"/>
+          </svg>
+          <span id="cloudStatusDot" class="w-2 h-2 rounded-full bg-amber-500 absolute -bottom-0.5 -right-0.5 border border-white"></span>
+        </div>
+        <span class="text-[11px] font-semibold text-slate-800 hidden sm:inline" id="googleProfileLabel">Not signed in</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- RIBBON TAB HEADERS -->
+  <nav class="bg-[#107c41] text-white/90 px-3 flex items-center gap-1 text-xs font-medium shrink-0 border-t border-white/10 overflow-x-auto">
+    <button onclick="switchRibbonTab('home')" id="tabBtn-home" class="ribbon-tab-btn bg-white text-[#107c41] font-semibold px-3.5 py-1.5 rounded-t transition">Home (होम)</button>
+    <button onclick="switchRibbonTab('super')" id="tabBtn-super" class="ribbon-tab-btn bg-amber-400/20 text-amber-200 hover:bg-white/15 px-3.5 py-1.5 rounded-t transition font-semibold">🚀 Super Pro & AI (एक्सल का बाप)</button>
+    <button onclick="switchRibbonTab('insert')" id="tabBtn-insert" class="ribbon-tab-btn hover:bg-white/15 px-3.5 py-1.5 rounded-t transition">Insert (इन्सर्ट & चार्ट)</button>
+    <button onclick="switchRibbonTab('formulas')" id="tabBtn-formulas" class="ribbon-tab-btn hover:bg-white/15 px-3.5 py-1.5 rounded-t transition">Formulas (फ़ॉर्मूला ƒx)</button>
+    <button onclick="switchRibbonTab('data')" id="tabBtn-data" class="ribbon-tab-btn hover:bg-white/15 px-3.5 py-1.5 rounded-t transition">Data (सॉर्ट & टूल्स)</button>
+    <button onclick="switchRibbonTab('view')" id="tabBtn-view" class="ribbon-tab-btn hover:bg-white/15 px-3.5 py-1.5 rounded-t transition">View & Export (व्यू & एक्सपोर्ट)</button>
+  </nav>
+
+  <!-- RIBBON TOOLBAR CONTENT -->
+  <section class="bg-white border-b border-slate-200 px-3 py-1.5 shadow-sm shrink-0 overflow-x-auto">
+    
+    <!-- 1. HOME RIBBON -->
+    <div id="ribbon-home" class="flex items-center gap-2 flex-wrap text-xs">
+      <div class="flex items-center gap-1 pr-2 border-r border-slate-200">
+        <button onclick="addNewBlankPage()" class="px-2.5 py-1 rounded bg-emerald-600 text-white hover:bg-emerald-700 font-semibold shadow-sm" title="1-क्लिक में नया खाली पेज खोलें">📄 + नया पेज</button>
+        <button onclick="copySelection()" class="px-2 py-1 rounded hover:bg-slate-100 text-slate-700 font-medium" title="Copy (Ctrl+C)">📋 Copy</button>
+        <button onclick="cutSelection()" class="px-2 py-1 rounded hover:bg-slate-100 text-slate-700 font-medium" title="Cut (Ctrl+X)">✂️ Cut</button>
+        <button onclick="pasteSelection()" class="px-2 py-1 rounded hover:bg-slate-100 text-slate-700 font-medium" title="Paste (Ctrl+V)">📥 Paste</button>
+      </div>
+
+      <div class="flex items-center gap-1 pr-2 border-r border-slate-200">
+        <select id="fontFamilySelect" onchange="applyCellStyle('fontFamily', this.value)" class="border border-slate-300 rounded px-1.5 py-1 text-xs bg-white">
+          <option value="Inter, sans-serif">Inter Sans</option>
+          <option value="'JetBrains Mono', monospace">JetBrains Mono</option>
+          <option value="Georgia, serif">Georgia Serif</option>
+          <option value="Arial, sans-serif">Arial</option>
+        </select>
+        <select id="fontSizeSelect" onchange="applyCellStyle('fontSize', this.value)" class="border border-slate-300 rounded px-1.5 py-1 text-xs bg-white w-14">
+          <option value="11px">11</option>
+          <option value="13px" selected>13</option>
+          <option value="15px">15</option>
+          <option value="18px">18</option>
+          <option value="22px">22</option>
+        </select>
+        <button onclick="toggleCellStyle('bold')" id="btnBold" class="w-7 h-7 rounded hover:bg-slate-100 font-bold border border-transparent">B</button>
+        <button onclick="toggleCellStyle('italic')" id="btnItalic" class="w-7 h-7 rounded hover:bg-slate-100 italic font-serif border border-transparent">I</button>
+        <button onclick="toggleCellStyle('underline')" id="btnUnderline" class="w-7 h-7 rounded hover:bg-slate-100 underline border border-transparent">U</button>
+      </div>
+
+      <div class="flex items-center gap-1.5 pr-2 border-r border-slate-200">
+        <label class="flex items-center gap-1 cursor-pointer bg-slate-50 px-2 py-1 rounded border border-slate-200 hover:bg-slate-100" title="Background Fill Color">
+          <span>🎨 Fill</span>
+          <input type="color" id="bgColorPicker" value="#ffffff" onchange="applyCellStyle('bg', this.value)" class="w-4 h-4 cursor-pointer border-0 p-0 bg-transparent">
+        </label>
+        <label class="flex items-center gap-1 cursor-pointer bg-slate-50 px-2 py-1 rounded border border-slate-200 hover:bg-slate-100" title="Text Color">
+          <span>🔤 Text</span>
+          <input type="color" id="textColorPicker" value="#0f172a" onchange="applyCellStyle('color', this.value)" class="w-4 h-4 cursor-pointer border-0 p-0 bg-transparent">
+        </label>
+      </div>
+
+      <!-- Alignment & Easy Box Size Controls -->
+      <div class="flex items-center gap-1 pr-2 border-r border-slate-200">
+        <button onclick="applyCellStyle('align', 'left')" class="px-2 py-1 rounded hover:bg-slate-100" title="Align Left">⬅ Left</button>
+        <button onclick="applyCellStyle('align', 'center')" class="px-2 py-1 rounded hover:bg-slate-100" title="Align Center">↔ Center</button>
+        <button onclick="applyCellStyle('align', 'right')" class="px-2 py-1 rounded hover:bg-slate-100" title="Align Right">➡ Right</button>
+        <button onclick="toggleCellStyle('wrap')" id="btnWrapText" class="px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 font-medium" title="Wrap Text in Box">↩ Wrap</button>
+      </div>
+
+      <!-- Direct Box Width / Height Adjuster with Live Pixel Input -->
+      <div class="flex items-center gap-1 pr-2 border-r border-slate-200 bg-emerald-50/70 px-2 py-0.5 rounded border border-emerald-200">
+        <span class="text-[11px] font-semibold text-emerald-900">📐 बॉक्स साइज:</span>
+        <button onclick="adjustActiveBoxSize(-18, 0)" class="px-1.5 py-0.5 rounded bg-white border border-slate-300 hover:bg-slate-100 font-bold" title="चौड़ाई छोटा करें (Narrower)">W-</button>
+        <input type="number" id="colWidthInput" value="115" min="24" max="600" onchange="setExactActiveColWidth(this.value)" class="mono w-12 text-center text-[11px] border border-slate-300 rounded py-0.5 bg-white" title="कॉलम की चौड़ाई (px)">
+        <button onclick="adjustActiveBoxSize(20, 0)" class="px-1.5 py-0.5 rounded bg-white border border-slate-300 hover:bg-slate-100 font-bold" title="चौड़ाई बड़ा करें (Wider)">W+</button>
+        <button onclick="adjustActiveBoxSize(0, -6)" class="px-1.5 py-0.5 rounded bg-white border border-slate-300 hover:bg-slate-100 font-bold" title="ऊंचाई छोटा करें (Shorter)">H-</button>
+        <button onclick="adjustActiveBoxSize(0, 10)" class="px-1.5 py-0.5 rounded bg-white border border-slate-300 hover:bg-slate-100 font-bold" title="ऊंचाई बड़ा करें (Taller)">H+</button>
+        <button onclick="autoFitAllColumns()" class="px-2 py-0.5 rounded bg-emerald-600 text-white hover:bg-emerald-700 font-medium" title="Auto-Fit All Columns">↔ Auto-Fit</button>
+      </div>
+
+      <div class="flex items-center gap-1 pr-2 border-r border-slate-200">
+        <select id="numFormatSelect" onchange="applyCellStyle('numFormat', this.value)" class="border border-slate-300 rounded px-2 py-1 text-xs bg-white">
+          <option value="general">General (सामान्य)</option>
+          <option value="inr">₹ Currency (रुपया)</option>
+          <option value="usd">$ Dollar (USD)</option>
+          <option value="percent">% Percentage</option>
+          <option value="decimal">0.00 Decimal</option>
+          <option value="stars">⭐ Star Rating (1-5)</option>
+        </select>
+        <button onclick="applyCellStyle('numFormat', 'inr')" class="px-2 py-1 rounded bg-emerald-50 text-emerald-800 hover:bg-emerald-100 font-semibold">₹</button>
+        <button onclick="applyCellStyle('numFormat', 'percent')" class="px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 font-semibold">%</button>
+      </div>
+
+      <div class="flex items-center gap-1">
+        <button onclick="applyConditionalHighlight()" class="px-2 py-1 rounded bg-amber-50 text-amber-900 border border-amber-200 hover:bg-amber-100 font-medium">✨ Auto Highlight</button>
+        <button onclick="toggleInCellDataBars()" class="px-2 py-1 rounded bg-emerald-50 text-emerald-900 border border-emerald-200 hover:bg-emerald-100 font-medium">📊 In-Cell Bars</button>
+        <button onclick="clearSelectedCells('all')" class="px-2 py-1 rounded bg-rose-50 text-rose-700 hover:bg-rose-100 font-medium">🧹 Clear</button>
+      </div>
+    </div>
+
+    <!-- 2. SUPER PRO & AI RIBBON (BEYOND EXCEL FEATURES) -->
+    <div id="ribbon-super" class="hidden items-center gap-1.5 flex-wrap text-xs">
+      <button onclick="openAICopilotModal()" class="px-2.5 py-1 rounded bg-gradient-to-r from-fuchsia-600 to-indigo-600 text-white font-semibold hover:opacity-95 shadow-sm">🤖 AI Sheet Copilot</button>
+      <button onclick="runAISheetInsights()" class="px-2.5 py-1 rounded bg-indigo-50 text-indigo-900 border border-indigo-200 hover:bg-indigo-100 font-semibold">🧠 AI डेटा एनालिसिस</button>
+      <button onclick="openPivotModal()" class="px-2.5 py-1 rounded bg-emerald-50 text-emerald-900 border border-emerald-200 hover:bg-emerald-100 font-semibold">📈 Auto Pivot Table</button>
+      <button onclick="openInvoiceModal()" class="px-2.5 py-1 rounded bg-amber-50 text-amber-900 border border-amber-200 hover:bg-amber-100 font-semibold">🧾 1-Click GST Invoice</button>
+      <button onclick="convertSelectedNumberToWords()" class="px-2.5 py-1 rounded bg-purple-50 text-purple-900 border border-purple-200 hover:bg-purple-100 font-semibold">🔤 अंक → शब्दों में (₹ Words)</button>
+      <button onclick="applyHeatmapScale()" class="px-2.5 py-1 rounded bg-rose-50 text-rose-900 border border-rose-200 hover:bg-rose-100 font-medium">🔥 Color Heatmap</button>
+      <button onclick="startVoiceToCell()" class="px-2.5 py-1 rounded bg-sky-50 text-sky-900 border border-sky-200 hover:bg-sky-100 font-medium">🎙️ बोलकर लिखें (Voice)</button>
+      <button onclick="speakSheetSummary()" class="px-2.5 py-1 rounded bg-teal-50 text-teal-900 border border-teal-200 hover:bg-teal-100 font-medium">🔊 बोलकर सुनाएं (TTS)</button>
+      <button onclick="toggleMacroRecording()" id="btnMacroRecord" class="px-2.5 py-1 rounded bg-slate-100 text-slate-800 border border-slate-300 hover:bg-slate-200 font-medium">🔴 Record Macro</button>
+      <button onclick="playRecordedMacro()" class="px-2.5 py-1 rounded bg-slate-800 text-white hover:bg-slate-700 font-medium">▶️ Play Macro</button>
+      <button onclick="saveSnapshotVersion()" class="px-2.5 py-1 rounded bg-slate-100 hover:bg-slate-200 font-medium">⏱️ Snapshot</button>
+    </div>
+
+    <!-- 3. INSERT RIBBON -->
+    <div id="ribbon-insert" class="hidden items-center gap-2 flex-wrap text-xs">
+      <div class="flex items-center gap-1 pr-2 border-r border-slate-200">
+        <button onclick="insertRowAbove()" class="px-2.5 py-1 rounded bg-slate-100 hover:bg-slate-200 font-medium">➕ Row Above</button>
+        <button onclick="insertRowBelow()" class="px-2.5 py-1 rounded bg-slate-100 hover:bg-slate-200 font-medium">➕ Row Below</button>
+        <button onclick="deleteActiveRow()" class="px-2.5 py-1 rounded bg-rose-50 text-rose-700 hover:bg-rose-100 font-medium">🗑 Delete Row</button>
+      </div>
+      <div class="flex items-center gap-1 pr-2 border-r border-slate-200">
+        <button onclick="insertColLeft()" class="px-2.5 py-1 rounded bg-slate-100 hover:bg-slate-200 font-medium">➕ Col Left</button>
+        <button onclick="insertColRight()" class="px-2.5 py-1 rounded bg-slate-100 hover:bg-slate-200 font-medium">➕ Col Right</button>
+        <button onclick="deleteActiveCol()" class="px-2.5 py-1 rounded bg-rose-50 text-rose-700 hover:bg-rose-100 font-medium">🗑 Delete Col</button>
+      </div>
+      <!-- Insert Picture to Cell (Synced with Google Cloud Queue) -->
+      <div class="flex items-center gap-1.5 pr-2 border-r border-slate-200">
+        <label class="px-2.5 py-1 rounded bg-indigo-600 text-white hover:bg-indigo-700 font-semibold cursor-pointer shadow-sm flex items-center gap-1">
+          🖼️ सेल में फोटो डालें (Insert Picture)
+          <input type="file" accept="image/*" onchange="insertPictureIntoCell(event)" class="hidden">
+        </label>
+      </div>
+      <div class="flex items-center gap-1.5 pr-2 border-r border-slate-200">
+        <button onclick="openChartModal('bar')" class="px-2.5 py-1 rounded bg-emerald-600 text-white hover:bg-emerald-700 font-medium">📊 Bar Chart</button>
+        <button onclick="openChartModal('line')" class="px-2.5 py-1 rounded bg-blue-600 text-white hover:bg-blue-700 font-medium">📈 Line Chart</button>
+        <button onclick="openChartModal('pie')" class="px-2.5 py-1 rounded bg-purple-600 text-white hover:bg-purple-700 font-medium">🥧 Pie Chart</button>
+      </div>
+      <div class="flex items-center gap-1">
+        <button onclick="insertTimestamp()" class="px-2.5 py-1 rounded bg-slate-100 hover:bg-slate-200 font-medium">📅 Current Date</button>
+        <button onclick="addMoreRows(20)" class="px-2.5 py-1 rounded bg-slate-100 hover:bg-slate-200 font-medium">⬇ +20 Rows</button>
+        <button onclick="addMoreCols(10)" class="px-2.5 py-1 rounded bg-slate-100 hover:bg-slate-200 font-medium">➡ +10 Cols</button>
+      </div>
+    </div>
+
+    <!-- 4. FORMULAS RIBBON -->
+    <div id="ribbon-formulas" class="hidden items-center gap-1.5 flex-wrap text-xs">
+      <span class="text-slate-500 font-semibold mr-1">AutoSum & Super Functions:</span>
+      <button onclick="insertQuickFormula('SUM')" class="px-2.5 py-1 rounded bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100 font-semibold">∑ SUM</button>
+      <button onclick="insertQuickFormula('AVERAGE')" class="px-2.5 py-1 rounded bg-slate-100 hover:bg-slate-200 font-medium">AVERAGE</button>
+      <button onclick="insertQuickFormula('COUNT')" class="px-2.5 py-1 rounded bg-slate-100 hover:bg-slate-200 font-medium">COUNT</button>
+      <button onclick="insertQuickFormula('MAX')" class="px-2.5 py-1 rounded bg-slate-100 hover:bg-slate-200 font-medium">MAX</button>
+      <button onclick="insertQuickFormula('MIN')" class="px-2.5 py-1 rounded bg-slate-100 hover:bg-slate-200 font-medium">MIN</button>
+      <button onclick="insertTemplateFormula('if')" class="px-2.5 py-1 rounded bg-blue-50 text-blue-800 border border-blue-200 hover:bg-blue-100 font-medium">IF (शर्त)</button>
+      <button onclick="insertTemplateFormula('vlookup')" class="px-2.5 py-1 rounded bg-purple-50 text-purple-800 border border-purple-200 hover:bg-purple-100 font-medium">VLOOKUP</button>
+      <button onclick="insertTemplateFormula('gst')" class="px-2.5 py-1 rounded bg-amber-50 text-amber-900 border border-amber-200 hover:bg-amber-100 font-medium">GST 18%</button>
+      <button onclick="insertTemplateFormula('emi')" class="px-2.5 py-1 rounded bg-indigo-50 text-indigo-900 border border-indigo-200 hover:bg-indigo-100 font-medium">🏦 EMI सूत्र</button>
+      <button onclick="insertTemplateFormula('numwords')" class="px-2.5 py-1 rounded bg-fuchsia-50 text-fuchsia-900 border border-fuchsia-200 hover:bg-fuchsia-100 font-medium">🔤 NUMWORDS</button>
+      <button onclick="insertTemplateFormula('concat')" class="px-2.5 py-1 rounded bg-slate-100 hover:bg-slate-200 font-medium">CONCAT</button>
+      <button onclick="recalculateAll()" class="px-2.5 py-1 rounded bg-emerald-700 text-white hover:bg-emerald-800 font-medium ml-auto">🔄 Recalculate Sheet</button>
+    </div>
+
+    <!-- 5. DATA RIBBON -->
+    <div id="ribbon-data" class="hidden items-center gap-2 flex-wrap text-xs">
+      <div class="flex items-center gap-1 pr-2 border-r border-slate-200">
+        <button onclick="sortColumn('asc')" class="px-2.5 py-1 rounded bg-slate-100 hover:bg-slate-200 font-medium">🔼 Sort A → Z (आरोही)</button>
+        <button onclick="sortColumn('desc')" class="px-2.5 py-1 rounded bg-slate-100 hover:bg-slate-200 font-medium">🔽 Sort Z → A (अवरोही)</button>
+      </div>
+      <div class="flex items-center gap-1 pr-2 border-r border-slate-200">
+        <button onclick="fillSeriesDown()" class="px-2.5 py-1 rounded bg-blue-50 text-blue-800 border border-blue-200 hover:bg-blue-100 font-medium">🔢 Auto-Fill Series (1,2,3...)</button>
+        <button onclick="removeDuplicateRows()" class="px-2.5 py-1 rounded bg-amber-50 text-amber-900 border border-amber-200 hover:bg-amber-100 font-medium">🧹 Remove Duplicates</button>
+        <button onclick="smartCleanSheetData()" class="px-2.5 py-1 rounded bg-emerald-50 text-emerald-900 border border-emerald-200 hover:bg-emerald-100 font-medium">✨ Smart Trim & Clean</button>
+      </div>
+      <div class="flex items-center gap-1">
+        <button onclick="openModal('findReplaceModal')" class="px-2.5 py-1 rounded bg-slate-100 hover:bg-slate-200 font-medium">🔎 Find & Replace</button>
+        <button onclick="openModal('goalSeekModal')" class="px-2.5 py-1 rounded bg-purple-50 text-purple-900 border border-purple-200 hover:bg-purple-100 font-medium">🎯 Goal Seek (लक्ष्य गणना)</button>
+        <button onclick="openPivotModal()" class="px-2.5 py-1 rounded bg-indigo-50 text-indigo-900 border border-indigo-200 hover:bg-indigo-100 font-medium">📊 Pivot Table</button>
+      </div>
+    </div>
+
+    <!-- 6. VIEW & EXCEL (.XLSX) EXPORT RIBBON -->
+    <div id="ribbon-view" class="hidden items-center gap-2 flex-wrap text-xs">
+      <button onclick="exportExcelXLSX()" class="px-3 py-1 rounded bg-emerald-700 text-white hover:bg-emerald-800 font-bold shadow-sm">📥 Save as Microsoft Excel (.xlsx)</button>
+      <label class="px-3 py-1 rounded bg-amber-500 text-slate-950 hover:bg-amber-400 font-bold cursor-pointer shadow-sm">
+        📂 Open Excel (.xlsx / .csv)
+        <input type="file" accept=".xlsx,.xls,.csv,.txt" onchange="importExcelOrCSVFile(event)" class="hidden">
+      </label>
+      <button onclick="exportCSV()" class="px-2.5 py-1 rounded bg-emerald-600 text-white hover:bg-emerald-700 font-medium">⬇ Export CSV (Excel)</button>
+      <button onclick="exportJSONWorkbook()" class="px-2.5 py-1 rounded bg-blue-600 text-white hover:bg-blue-700 font-medium">📦 Backup Workbook (.json)</button>
+      <button onclick="toggleGridlines()" class="px-2.5 py-1 rounded bg-slate-100 hover:bg-slate-200 font-medium">🏁 Toggle Gridlines</button>
+      <button onclick="toggleFreezeRow1()" class="px-2.5 py-1 rounded bg-blue-50 text-blue-900 border border-blue-200 hover:bg-blue-100 font-medium">❄️ Freeze Row 1</button>
+      <button onclick="toggleFreezeColA()" class="px-2.5 py-1 rounded bg-blue-50 text-blue-900 border border-blue-200 hover:bg-blue-100 font-medium">❄️ Freeze Col A</button>
+      <button onclick="toggleDarkTheme()" class="px-2.5 py-1 rounded bg-slate-800 text-white hover:bg-slate-700 font-medium">🌙 Dark / Light Mode</button>
+      <button onclick="window.print()" class="px-2.5 py-1 rounded bg-slate-100 hover:bg-slate-200 font-medium">🖨 Print Sheet</button>
+    </div>
+
+  </section>
+
+  <!-- FORMULA BAR + AI QUICK PROMPT BAR -->
+  <div class="bg-slate-50 border-b border-slate-300 px-3 py-1 flex items-center gap-2 shrink-0 flex-wrap sm:flex-nowrap">
+    <!-- Name Box -->
+    <input type="text" id="nameBox" value="A1" onkeydown="if(event.key==='Enter') jumpToCellFromNameBox(this.value)" class="mono w-20 text-center text-xs font-semibold border border-slate-300 rounded px-1.5 py-1 bg-white text-slate-800 focus:outline-none focus:border-emerald-600" title="Active Cell Coordinate (Type any cell e.g. AZ200 and press Enter)">
+    
+    <!-- fx Button -->
+    <button onclick="openModal('helpModal')" class="mono text-xs font-bold italic text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-1 rounded hover:bg-emerald-100" title="Insert Function">ƒx</button>
+
+    <!-- Formula Input -->
+    <input type="text" id="formulaInput" placeholder="मान या फ़ॉर्मूला लिखें (उदा. =SUM(B2:B6), =NUMWORDS(G8), =EMI(500000,9.5,60))..." onkeydown="handleFormulaBarKey(event)" oninput="syncFormulaToActiveCell(this.value)" class="mono flex-1 text-xs border border-slate-300 rounded px-2.5 py-1 bg-white text-slate-900 focus:outline-none focus:border-emerald-600">
+
+    <!-- Quick AI Command Input -->
+    <div class="hidden xl:flex items-center gap-1">
+      <input type="text" id="quickAiPrompt" onkeydown="if(event.key==='Enter') runQuickAiCommand(this.value)" placeholder="🤖 AI कमांड: 'सैलरी शीट बनाओ' या '18% टैक्स जोड़ो'..." class="text-xs border border-indigo-200 bg-indigo-50/60 rounded px-2.5 py-1 w-60 focus:outline-none focus:bg-white focus:border-indigo-500">
+      <button onclick="runQuickAiCommand(document.getElementById('quickAiPrompt').value)" class="bg-indigo-600 text-white text-xs px-2.5 py-1 rounded hover:bg-indigo-700 font-medium">Run AI</button>
+    </div>
+
+    <!-- Quick Range & Box Size Badge -->
+    <span id="selectionBadge" class="hidden sm:inline-block text-[11px] text-slate-600 font-mono bg-slate-200/80 px-2 py-0.5 rounded">Range: A1</span>
+  </div>
+
+  <!-- MAIN WORKSPACE: INFINITE SPREADSHEET GRID + KANBAN VIEW -->
+  <main class="grid-container flex-1 freeze-row-1" id="gridWrapper">
+    <table class="excel-table" id="spreadsheetTable">
+      <thead id="tableHead"></thead>
+      <tbody id="tableBody"></tbody>
+    </table>
+
+    <!-- KANBAN BOARD VIEW (Hidden unless toggled) -->
+    <div id="kanbanBoardContainer" class="hidden p-5 bg-slate-100 min-h-full">
+      <div class="flex items-center justify-between mb-4">
+        <div>
+          <h2 class="text-base font-bold text-slate-900">📋 Smart Kanban & Card Studio (Beyond Excel View)</h2>
+          <p class="text-xs text-slate-500">आपकी स्प्रेडशीट की प्रत्येक पंक्ति यहाँ इंटरैक्टिव बिज़नेस कार्ड के रूप में दिख रही है</p>
+        </div>
+        <button onclick="toggleKanbanView()" class="bg-emerald-600 text-white text-xs font-semibold px-3 py-1.5 rounded shadow hover:bg-emerald-700">🔙 वापस ग्रिड (Grid View) में जाएं</button>
+      </div>
+      <div id="kanbanCardsGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"></div>
+    </div>
+  </main>
+
+  <!-- BOTTOM SHEET TABS & LIVE STATUS BAR -->
+  <footer class="bg-slate-100 border-t border-slate-300 flex flex-col sm:flex-row items-center justify-between px-3 py-1 gap-2 shrink-0 text-xs">
+    <!-- Sheet Tabs -->
+    <div class="flex items-center gap-1.5 overflow-x-auto w-full sm:w-auto">
+      <button onclick="addNewSheet()" class="w-6 h-6 rounded bg-emerald-600 text-white font-bold hover:bg-emerald-700 flex items-center justify-center shrink-0" title="Add New Sheet">+</button>
+      <button onclick="addNewBlankPage()" class="px-2.5 py-1 rounded bg-emerald-600 text-white font-semibold hover:bg-emerald-700 flex items-center gap-1 shrink-0 shadow-sm" title="नया खाली पेज (New Blank Sheet) खोलें">➕ नया पेज खोलें</button>
+      <div id="sheetTabsContainer" class="flex items-center gap-1"></div>
+      <button onclick="renameCurrentSheetPrompt()" class="ml-1 px-2 py-0.5 rounded text-[11px] text-slate-600 hover:bg-slate-200 shrink-0" title="Rename Active Sheet">✏️ नाम बदलें</button>
+    </div>
+
+    <!-- Live Calculation Metrics & Zoom -->
+    <div class="flex items-center gap-3 text-[11px] text-slate-700 font-medium ml-auto shrink-0">
+      <span class="text-emerald-700 font-semibold hidden lg:inline" id="infiniteScrollStatus">⚡ किसी भी सेल के किनारे से साइज छोटा-बड़ा करें</span>
+      <span id="statCount">Count: <b>0</b></span>
+      <span id="statSum">Sum (योग): <b>0</b></span>
+      <span id="statAvg">Avg (औसत): <b>0</b></span>
+      <span id="statMin" class="hidden md:inline">Min: <b>0</b></span>
+      <span id="statMax" class="hidden md:inline">Max: <b>0</b></span>
+      <div class="flex items-center gap-1 border-l border-slate-300 pl-2">
+        <span>🔍</span>
+        <input type="range" min="75" max="140" value="100" oninput="setGridZoom(this.value)" class="w-16 accent-emerald-600 cursor-pointer">
+        <span id="zoomLabel" class="w-9">100%</span>
+      </div>
+    </div>
+  </footer>
+
+    <!-- NEW PAGE & WORKBOOK STUDIO MODAL -->
+  <div id="newPageModal" class="fixed inset-0 bg-slate-900/60 hidden items-center justify-center z-50 p-4">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-5 border border-slate-200">
+      <div class="flex items-center justify-between border-b pb-3 mb-4">
+        <div>
+          <h3 class="font-bold text-base text-slate-900">📄 नया पेज / नई वर्कबुक खोलें</h3>
+          <p class="text-xs text-slate-500">चुनें कि आप किस प्रकार का नया पेज खोलना चाहते हैं</p>
+        </div>
+        <button onclick="closeModal('newPageModal')" class="text-slate-400 hover:text-slate-700 font-bold">✕</button>
+      </div>
+      <div class="space-y-2.5 text-xs">
+        <button onclick="addNewBlankPage(); closeModal('newPageModal')" class="w-full p-3 rounded-xl bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 text-left flex items-center gap-3 transition">
+          <span class="text-2xl">📄</span>
+          <div>
+            <div class="font-bold text-emerald-950 text-sm">1. नया खाली पेज जोड़ें (Add Blank Page)</div>
+            <div class="text-emerald-800 text-[11px]">वर्तमान फ़ाइल में एक बिल्कुल कोरा (Blank) नया पेज/शीट टैब खोलें</div>
+          </div>
+        </button>
+
+        <button onclick="startFreshBlankWorkbook()" class="w-full p-3 rounded-xl bg-blue-50 hover:bg-blue-100 border border-blue-300 text-left flex items-center gap-3 transition">
+          <span class="text-2xl">🆕</span>
+          <div>
+            <div class="font-bold text-blue-950 text-sm">2. पूरी नई खाली फ़ाइल शुरू करें (New Blank File)</div>
+            <div class="text-blue-800 text-[11px]">पुरानी डेमो शीट्स हटाकर जीरो से बिल्कुल नई खाली एक्सेल वर्कबुक शुरू करें</div>
+          </div>
+        </button>
+
+        <button onclick="closeModal('newPageModal'); openAICopilotModal()" class="w-full p-3 rounded-xl bg-purple-50 hover:bg-purple-100 border border-purple-300 text-left flex items-center gap-3 transition">
+          <span class="text-2xl">🤖</span>
+          <div>
+            <div class="font-bold text-purple-950 text-sm">3. रेडीमेड स्मार्ट टेम्पलेट पेज (Salary / EMI / Stock)</div>
+            <div class="text-purple-800 text-[11px]">AI की मदद से सैलरी, लोन EMI या स्टॉक ट्रैकर का बना-बनाया पेज खोलें</div>
+          </div>
+        </button>
+      </div>
+      <div class="mt-4 pt-3 border-t flex justify-end">
+        <button onclick="closeModal('newPageModal')" class="bg-slate-800 text-white px-4 py-1.5 rounded text-xs font-medium">बंद करें</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- GOOGLE CLOUD LOGIN & PICTURE SYNC MODAL -->
+  <div id="googleAuthModal" class="fixed inset-0 bg-slate-900/60 hidden items-center justify-center z-50 p-4">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-5 border border-slate-200">
+      <div class="flex items-center justify-between border-b pb-3 mb-4">
+        <div class="flex items-center gap-2.5">
+          <div class="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center border">
+            <svg class="w-5 h-5" viewBox="0 0 24 24">
+              <path fill="#EA4335" d="M12 5c1.6 0 3 .6 4.1 1.7l3.1-3.1C17.3 1.8 14.8 1 12 1 7.4 1 3.5 3.6 1.6 7.4l3.7 2.8C6.2 7.2 8.9 5 12 5z"/>
+              <path fill="#4285F4" d="M23.5 12.3c0-.8-.1-1.6-.2-2.3H12v4.5h6.5c-.3 1.5-1.1 2.8-2.4 3.6l3.7 2.9c2.2-2 3.7-5 3.7-8.7z"/>
+              <path fill="#FBBC05" d="M5.3 14.8c-.2-.8-.4-1.6-.4-2.5s.2-1.7.4-2.5L1.6 7C.6 9 0 11.2 0 13.5s.6 4.5 1.6 6.5l3.7-2.9z"/>
+              <path fill="#34A853" d="M12 24c3.2 0 6-1.1 8-3l-3.7-2.9c-1.1.7-2.5 1.2-4.3 1.2-3.1 0-5.8-2.1-6.7-5l-3.7 2.8C3.5 21.4 7.4 24 12 24z"/>
+            </svg>
+          </div>
+          <div>
+            <h3 class="font-bold text-sm text-slate-900">Google Account & Cloud Workbook</h3>
+            <p class="text-[11px] text-slate-500" id="googleModalSub">Workbook आपके Firebase खाते में save होती है</p>
+          </div>
+        </div>
+        <button onclick="closeModal('googleAuthModal')" class="text-slate-400 hover:text-slate-700 font-bold">✕</button>
+      </div>
+
+      <div class="space-y-3 text-xs">
+        <div class="p-3.5 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between" id="googleUserCard">
+          <div class="flex items-center gap-2.5">
+            <div class="w-10 h-10 rounded-full bg-emerald-700 text-white font-bold flex items-center justify-center text-sm" id="profileInitials">G</div>
+            <div>
+              <div class="font-bold text-slate-800" id="profileNameDisplay">Not signed in</div>
+              <div class="text-[11px] text-slate-500" id="profileEmailDisplay">Google से sign in करें ताकि workbook devices के बीच sync हो।</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex gap-2">
+          <button onclick="retryExcelStudioCloudLoad()" id="btnCloudRetry" class="flex-1 py-2 px-3 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-semibold text-xs">↻ Sync Now</button>
+          <button onclick="logoutCloudUser()" id="btnGoogleSignInAction" class="flex-1 py-2 px-3 rounded-xl bg-slate-700 hover:bg-slate-800 text-white font-semibold text-xs">Sign out</button>
+        </div>
+
+        <div class="p-3 rounded-xl bg-indigo-50/70 border border-indigo-200 space-y-2">
+          <div class="flex items-center justify-between">
+            <span class="font-bold text-indigo-950">🖼️ Workbook Pictures</span>
+            <span class="text-[10px] bg-indigo-200 text-indigo-900 px-2 py-0.5 rounded-full font-semibold" id="cloudPicCountBadge">0 Photos</span>
+          </div>
+          <p class="text-[11px] text-indigo-800">Cell data और workbook में जोड़ी गई तस्वीरें इसी Firebase workbook के साथ sync होती हैं।</p>
+          <label class="inline-flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-3 py-1.5 rounded-lg cursor-pointer">
+            <span>➕ सक्रिय सेल में फोटो जोड़ें (Add Picture)</span>
+            <input type="file" accept="image/*" onchange="insertPictureIntoCell(event)" class="hidden">
+          </label>
+        </div>
+      </div>
+
+      <div class="mt-4 pt-3 border-t flex justify-end">
+        <button onclick="closeModal('googleAuthModal')" class="bg-slate-800 text-white px-4 py-1.5 rounded text-xs font-medium">बंद करें</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- AI COPILOT & INSIGHTS MODAL -->
+  <div id="aiCopilotModal" class="fixed inset-0 bg-slate-900/60 hidden items-center justify-center z-50 p-4">
+    <div class="bg-white rounded-xl shadow-2xl max-w-2xl w-full p-5 border border-slate-200 max-h-[90vh] flex flex-col">
+      <div class="flex items-center justify-between border-b border-slate-200 pb-3 mb-3">
+        <div class="flex items-center gap-2">
+          <span class="text-xl">🤖</span>
+          <div>
+            <h3 class="font-bold text-base text-slate-900">Excel AI Copilot & Smart Sheet Generator</h3>
+            <p class="text-xs text-slate-500">हिंदी या English में कमांड दें — AI पूरी टेबल, फ़ॉर्मूले और एनालिसिस खुद तैयार करेगा</p>
+          </div>
+        </div>
+        <button onclick="closeModal('aiCopilotModal')" class="text-slate-400 hover:text-slate-700 font-bold px-2 py-1">✕</button>
+      </div>
+
+      <div class="space-y-3 text-xs overflow-y-auto pr-1">
+        <div class="flex gap-2">
+          <input type="text" id="aiModalPromptInput" placeholder="उदा. 'Employee Payroll Sheet बनाओ' या 'EMI Calculator बनाओ' या 'सारे नंबर 10% बढ़ाओ'..." class="flex-1 border border-indigo-300 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-indigo-600">
+          <button onclick="runQuickAiCommand(document.getElementById('aiModalPromptInput').value)" class="bg-gradient-to-r from-fuchsia-600 to-indigo-600 text-white font-semibold px-4 py-2 rounded-lg hover:opacity-95">✨ जनरेट करें</button>
+        </div>
+
+        <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-1">
+          <button onclick="generateAISmartSheet('payroll')" class="p-2.5 rounded-lg border border-slate-200 hover:border-indigo-400 hover:bg-indigo-50 text-left transition">
+            <div class="font-bold text-indigo-900">👔 Employee Salary Payroll</div>
+            <div class="text-[11px] text-slate-500">Basic, HRA, PF, ESI & Net Salary शीट</div>
+          </button>
+          <button onclick="generateAISmartSheet('emi')" class="p-2.5 rounded-lg border border-slate-200 hover:border-emerald-400 hover:bg-emerald-50 text-left transition">
+            <div class="font-bold text-emerald-900">🏦 Loan EMI & Finance</div>
+            <div class="text-[11px] text-slate-500">होम/कार लोन EMI और ब्याज कैलकुलेटर</div>
+          </button>
+          <button onclick="generateAISmartSheet('inventory')" class="p-2.5 rounded-lg border border-slate-200 hover:border-amber-400 hover:bg-amber-50 text-left transition">
+            <div class="font-bold text-amber-900">📦 Stock & Reorder Tracker</div>
+            <div class="text-[11px] text-slate-500">Auto Low-Stock Alert और वैल्यूएशन</div>
+          </button>
+        </div>
+
+        <div id="aiInsightsOutputBox" class="p-3.5 rounded-lg bg-slate-50 border border-slate-200 space-y-2">
+          <div class="font-bold text-slate-800">📊 वर्तमान शीट का लाइव AI विश्लेषण (Sheet Intelligence):</div>
+          <div id="aiInsightsContent" class="text-slate-600 space-y-1"></div>
+        </div>
+      </div>
+
+      <div class="mt-4 pt-3 border-t flex justify-end">
+        <button onclick="closeModal('aiCopilotModal')" class="bg-slate-800 text-white px-4 py-1.5 rounded text-xs font-medium">बंद करें</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- AUTO PIVOT TABLE MODAL -->
+  <div id="pivotModal" class="fixed inset-0 bg-slate-900/60 hidden items-center justify-center z-50 p-4">
+    <div class="bg-white rounded-xl shadow-2xl max-w-2xl w-full p-5 border border-slate-200 max-h-[90vh] flex flex-col">
+      <div class="flex items-center justify-between border-b pb-3 mb-3">
+        <div>
+          <h3 class="font-bold text-base text-slate-900">📈 Instant Auto-Pivot Table & BI Summary</h3>
+          <p class="text-xs text-slate-500">बिना किसी जटिल सेटअप के आपकी शीट का ऑटोमैटिक ग्रुप सारांश</p>
+        </div>
+        <button onclick="closeModal('pivotModal')" class="text-slate-400 hover:text-slate-700 font-bold">✕</button>
+      </div>
+      <div id="pivotTableContainer" class="overflow-auto flex-1 border border-slate-200 rounded-lg"></div>
+      <div class="mt-4 flex justify-between items-center">
+        <button onclick="exportPivotAsNewSheet()" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold px-3.5 py-1.5 rounded shadow">➕ इसे नई शीट में सेव करें</button>
+        <button onclick="closeModal('pivotModal')" class="bg-slate-800 text-white px-4 py-1.5 rounded text-xs font-medium">बंद करें</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 1-CLICK GST INVOICE / PRINT REPORT MODAL -->
+  <div id="invoiceModal" class="fixed inset-0 bg-slate-900/60 hidden items-center justify-center z-50 p-4">
+    <div class="bg-white rounded-xl shadow-2xl max-w-2xl w-full p-6 border border-slate-200 max-h-[92vh] flex flex-col">
+      <div class="flex items-center justify-between border-b pb-3 mb-4">
+        <div>
+          <h3 class="font-bold text-base text-slate-900">🧾 स्मार्ट GST टैक्स इनवॉइस / ऑफिशियल रिपोर्ट</h3>
+          <p class="text-xs text-slate-500">आपकी शीट के डेटा से अपने आप तैयार प्रोफेशनल प्रिंट-रेडी इनवॉइस</p>
+        </div>
+        <button onclick="closeModal('invoiceModal')" class="text-slate-400 hover:text-slate-700 font-bold">✕</button>
+      </div>
+      <div id="invoicePreviewContent" class="overflow-y-auto flex-1 border border-slate-300 rounded-lg p-4 bg-white text-xs space-y-3"></div>
+      <div class="mt-4 flex justify-end gap-2">
+        <button onclick="window.print()" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold px-4 py-1.5 rounded">🖨 Print / Save PDF</button>
+        <button onclick="closeModal('invoiceModal')" class="bg-slate-800 text-white px-4 py-1.5 rounded text-xs font-medium">बंद करें</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- CHART MODAL -->
+  <div id="chartModal" class="fixed inset-0 bg-slate-900/60 hidden items-center justify-center z-50 p-4">
+    <div class="bg-white rounded-xl shadow-2xl max-w-2xl w-full p-5 border border-slate-200">
+      <div class="flex items-center justify-between border-b border-slate-200 pb-3 mb-4">
+        <div>
+          <h3 class="font-bold text-base text-slate-900">📊 Excel Visual Chart Studio</h3>
+          <p class="text-xs text-slate-500">वर्तमान शीट के डेटा पर आधारित लाइव चार्ट</p>
+        </div>
+        <div class="flex items-center gap-2">
+          <select id="chartTypeSelector" onchange="renderActiveChart(this.value)" class="text-xs border border-slate-300 rounded px-2 py-1">
+            <option value="bar">Bar Chart (बार चार्ट)</option>
+            <option value="line">Line Chart (लाइन चार्ट)</option>
+            <option value="pie">Pie Chart (पाई चार्ट)</option>
+            <option value="doughnut">Doughnut Chart</option>
+            <option value="radar">Radar Chart</option>
+          </select>
+          <button onclick="closeModal('chartModal')" class="text-slate-500 hover:text-slate-800 font-bold px-2 py-1">✕</button>
+        </div>
+      </div>
+      <div class="relative h-72 w-full bg-slate-50 p-3 rounded-lg border border-slate-200">
+        <canvas id="excelChartCanvas"></canvas>
+      </div>
+      <div class="mt-4 flex justify-between items-center text-xs text-slate-500">
+        <span>टिप: चार्ट अपने आप पहले टेक्स्ट कॉलम को लेबल और संख्यात्मक कॉलम को डेटा के रूप में लेता है।</span>
+        <button onclick="closeModal('chartModal')" class="bg-slate-800 text-white px-4 py-1.5 rounded font-medium hover:bg-slate-700">बंद करें</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- FIND & REPLACE MODAL -->
+  <div id="findReplaceModal" class="fixed inset-0 bg-slate-900/60 hidden items-center justify-center z-50 p-4">
+    <div class="bg-white rounded-xl shadow-xl max-w-md w-full p-5">
+      <div class="flex items-center justify-between border-b pb-2 mb-3">
+        <h3 class="font-bold text-sm text-slate-900">🔎 Find & Replace (खोजें और बदलें)</h3>
+        <button onclick="closeModal('findReplaceModal')" class="text-slate-400 hover:text-slate-700 font-bold">✕</button>
+      </div>
+      <div class="space-y-3 text-xs">
+        <div>
+          <label class="block font-medium text-slate-700 mb-1">क्या खोजें (Find what):</label>
+          <input type="text" id="findTextInput" placeholder="उदा. Laptop" class="w-full border border-slate-300 rounded px-2.5 py-1.5">
+        </div>
+        <div>
+          <label class="block font-medium text-slate-700 mb-1">किससे बदलें (Replace with):</label>
+          <input type="text" id="replaceTextInput" placeholder="उदा. Super Computer" class="w-full border border-slate-300 rounded px-2.5 py-1.5">
+        </div>
+        <div class="flex justify-end gap-2 pt-2">
+          <button onclick="executeFindReplace()" class="bg-emerald-600 text-white px-4 py-1.5 rounded font-semibold hover:bg-emerald-700">Replace All</button>
+          <button onclick="closeModal('findReplaceModal')" class="bg-slate-200 text-slate-700 px-3 py-1.5 rounded">Cancel</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- GOAL SEEK MODAL -->
+  <div id="goalSeekModal" class="fixed inset-0 bg-slate-900/60 hidden items-center justify-center z-50 p-4">
+    <div class="bg-white rounded-xl shadow-xl max-w-md w-full p-5">
+      <div class="flex items-center justify-between border-b pb-2 mb-3">
+        <h3 class="font-bold text-sm text-slate-900">🎯 Goal Seek (लक्ष्य मूल्य कैलकुलेटर)</h3>
+        <button onclick="closeModal('goalSeekModal')" class="text-slate-400 hover:text-slate-700 font-bold">✕</button>
+      </div>
+      <div class="space-y-3 text-xs">
+        <p class="text-slate-600">किसी फ़ॉर्मूला सेल का मनचाहा परिणाम पाने के लिए इनपुट सेल में क्या संख्या होनी चाहिए, यह तुरंत निकालें:</p>
+        <div>
+          <label class="block font-medium text-slate-700 mb-1">फ़ॉर्मूला सेल (Set Cell, उदा. E2):</label>
+          <input type="text" id="gsFormulaCell" value="E2" class="mono w-full border border-slate-300 rounded px-2.5 py-1.5">
+        </div>
+        <div>
+          <label class="block font-medium text-slate-700 mb-1">मनचाहा परिणाम (To Value, उदा. 300000):</label>
+          <input type="number" id="gsTargetVal" value="300000" class="mono w-full border border-slate-300 rounded px-2.5 py-1.5">
+        </div>
+        <div>
+          <label class="block font-medium text-slate-700 mb-1">बदलने वाला सेल (By Changing Cell, उदा. D2):</label>
+          <input type="text" id="gsChangeCell" value="D2" class="mono w-full border border-slate-300 rounded px-2.5 py-1.5">
+        </div>
+        <div class="flex justify-end gap-2 pt-2">
+          <button onclick="runGoalSeek()" class="bg-purple-600 text-white px-4 py-1.5 rounded font-semibold hover:bg-purple-700">Calculate Goal</button>
+          <button onclick="closeModal('goalSeekModal')" class="bg-slate-200 text-slate-700 px-3 py-1.5 rounded">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RENAME SHEET MODAL -->
+  <div id="renameSheetModal" class="fixed inset-0 bg-slate-900/60 hidden items-center justify-center z-50 p-4">
+    <div class="bg-white rounded-xl shadow-xl max-w-sm w-full p-5">
+      <div class="flex items-center justify-between border-b pb-2 mb-3">
+        <h3 class="font-bold text-sm text-slate-900">✏️ शीट का नाम बदलें</h3>
+        <button onclick="closeModal('renameSheetModal')" class="text-slate-400 hover:text-slate-700 font-bold">✕</button>
+      </div>
+      <div class="space-y-3 text-xs">
+        <input type="text" id="renameSheetInput" class="w-full border border-slate-300 rounded px-2.5 py-1.5 font-medium" placeholder="नया नाम लिखें...">
+        <div class="flex justify-end gap-2">
+          <button onclick="confirmRenameSheet()" class="bg-emerald-600 text-white px-4 py-1.5 rounded font-semibold hover:bg-emerald-700">Save Name</button>
+          <button onclick="closeModal('renameSheetModal')" class="bg-slate-200 text-slate-700 px-3 py-1.5 rounded">Cancel</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- FORMULA HELP MODAL -->
+  <div id="helpModal" class="fixed inset-0 bg-slate-900/60 hidden items-center justify-center z-50 p-4">
+    <div class="bg-white rounded-xl shadow-2xl max-w-lg w-full p-5">
+      <div class="flex items-center justify-between border-b pb-2 mb-3">
+        <h3 class="font-bold text-base text-slate-900">📘 Excel + Super Pro फ़ॉर्मूले और बॉक्स री-साइज गाइड</h3>
+        <button onclick="closeModal('helpModal')" class="text-slate-400 hover:text-slate-700 font-bold">✕</button>
+      </div>
+      <div class="space-y-2 text-xs text-slate-700 max-h-80 overflow-y-auto">
+        <div class="p-2 bg-amber-50 rounded border border-amber-200"><b>📐 बॉक्स छोटा-बड़ा कैसे करें:</b> किसी भी सेल (Box) के दाएं किनारे पर माउस ले जाएं तो <b>↔ (col-resize)</b> कर्सर दिखेगा, नीचे के किनारे पर <b>↕ (row-resize)</b> दिखेगा, और कोने पर <b>↘ (corner-resize)</b> दिखेगा—उसे पकड़कर खींचें या Home टैब में <b>W- / W+ / H- / H+</b> दबाएं!</div>
+        <div class="p-2 bg-emerald-50 rounded border border-emerald-200"><b>=NUMWORDS(G8)</b> — किसी भी संख्या को ऑटोमैटिक शब्दों (Rupees in Words) में बदलें</div>
+        <div class="p-2 bg-indigo-50 rounded border border-indigo-200"><b>=EMI(500000, 9.5, 60)</b> — लोन राशि, ब्याज दर (%) और महीनों से सीधी मासिक किस्त (EMI) निकालें</div>
+        <div class="p-2 bg-slate-50 rounded border"><b>=GST(E2, 18) / =GROWTH(C2, B2)</b> — सीधा GST टैक्स और प्रतिशत ग्रोथ निकालें</div>
+        <div class="p-2 bg-slate-50 rounded border"><b>=SUM(B2:B50) / =AVERAGE(B2:B50) / =MEDIAN(B2:B50)</b> — योग, औसत और माध्यिका</div>
+        <div class="p-2 bg-slate-50 rounded border"><b>=IF(D2>=60, "First Div", "Pass")</b> — शर्त के आधार पर परिणाम</div>
+        <div class="p-2 bg-slate-50 rounded border"><b>=VLOOKUP(102, A2:G10, 2, 0)</b> — टेबल में डेटा खोजना</div>
+      </div>
+      <div class="mt-4 flex justify-end">
+        <button onclick="closeModal('helpModal')" class="bg-emerald-600 text-white px-4 py-1.5 rounded text-xs font-semibold">समझ गया</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- TOAST NOTIFICATION -->
+  <div id="toastBox" class="fixed bottom-10 right-4 bg-slate-900 text-white text-xs px-4 py-2.5 rounded-lg shadow-lg hidden z-50 transition-all"></div>
+
+  <script>
+    // =========================================================================
+    // INFINITE GRID STATE, BOX DIMENSIONS & INITIAL TEMPLATES
+    // =========================================================================
+    let TOTAL_COLS = 36; // Starts A to AJ, auto-expands infinitely on right scroll!
+    let TOTAL_ROWS = 80; // Starts 1 to 80, auto-expands infinitely on bottom scroll!
+    let colWidths = { 0: 95, 1: 165, 2: 90 };  // Default clean widths (C starts compact and shrinks freely!)
+    let rowHeights = {}; // Custom resized heights per row index
+    let googleCloudUser = null;
+    let cloudMediaQueue = [];
+
+    const defaultSheets = [
+      {
+        name: "व्यापार बिलिंग (GST Sales)",
+        cells: {
+          "A1": { raw: "Item Code", style: { bold: true, bg: "#dcfce7", color: "#14532d", align: "center" } },
+          "B1": { raw: "Product Name (उत्पाद)", style: { bold: true, bg: "#dcfce7", color: "#14532d", align: "left" } },
+          "C1": { raw: "Qty (मात्रा)", style: { bold: true, bg: "#dcfce7", color: "#14532d", align: "right" } },
+          "D1": { raw: "Rate (दर ₹)", style: { bold: true, bg: "#dcfce7", color: "#14532d", align: "right" } },
+          "E1": { raw: "Amount (राशि)", style: { bold: true, bg: "#dcfce7", color: "#14532d", align: "right" } },
+          "F1": { raw: "GST (18%)", style: { bold: true, bg: "#dcfce7", color: "#14532d", align: "right" } },
+          "G1": { raw: "Net Total (कुल ₹)", style: { bold: true, bg: "#dcfce7", color: "#14532d", align: "right" } },
+          "H1": { raw: "Performance Bar", style: { bold: true, bg: "#dcfce7", color: "#14532d", align: "right" } },
+
+          "A2": { raw: "101", style: { align: "center" } },
+          "B2": { raw: "HP Pavilion Laptop", style: {} },
+          "C2": { raw: "4", style: { align: "right" } },
+          "D2": { raw: "52000", style: { align: "right", numFormat: "inr" } },
+          "E2": { raw: "=C2*D2", style: { align: "right", numFormat: "inr" } },
+          "F2": { raw: "=E2*0.18", style: { align: "right", numFormat: "inr" } },
+          "G2": { raw: "=E2+F2", style: { bold: true, align: "right", numFormat: "inr" } },
+          "H2": { raw: "=G2", style: { align: "right", numFormat: "inr", dataBar: true } },
+
+          "A3": { raw: "102", style: { align: "center" } },
+          "B3": { raw: "Samsung 27\" Monitor", style: {} },
+          "C3": { raw: "8", style: { align: "right" } },
+          "D3": { raw: "14500", style: { align: "right", numFormat: "inr" } },
+          "E3": { raw: "=C3*D3", style: { align: "right", numFormat: "inr" } },
+          "F3": { raw: "=E3*0.18", style: { align: "right", numFormat: "inr" } },
+          "G3": { raw: "=E3+F3", style: { bold: true, align: "right", numFormat: "inr" } },
+          "H3": { raw: "=G3", style: { align: "right", numFormat: "inr", dataBar: true } },
+
+          "A4": { raw: "103", style: { align: "center" } },
+          "B4": { raw: "Logitech Wireless Combo", style: {} },
+          "C4": { raw: "15", style: { align: "right" } },
+          "D4": { raw: "2400", style: { align: "right", numFormat: "inr" } },
+          "E4": { raw: "=C4*D4", style: { align: "right", numFormat: "inr" } },
+          "F4": { raw: "=E4*0.18", style: { align: "right", numFormat: "inr" } },
+          "G4": { raw: "=E4+F4", style: { bold: true, align: "right", numFormat: "inr" } },
+          "H4": { raw: "=G4", style: { align: "right", numFormat: "inr", dataBar: true } },
+
+          "A5": { raw: "104", style: { align: "center" } },
+          "B5": { raw: "Epson EcoTank Printer", style: {} },
+          "C5": { raw: "3", style: { align: "right" } },
+          "D5": { raw: "16800", style: { align: "right", numFormat: "inr" } },
+          "E5": { raw: "=C5*D5", style: { align: "right", numFormat: "inr" } },
+          "F5": { raw: "=E5*0.18", style: { align: "right", numFormat: "inr" } },
+          "G5": { raw: "=E5+F5", style: { bold: true, align: "right", numFormat: "inr" } },
+          "H5": { raw: "=G5", style: { align: "right", numFormat: "inr", dataBar: true } },
+
+          "A6": { raw: "105", style: { align: "center" } },
+          "B6": { raw: "APC 1100VA UPS", style: {} },
+          "C6": { raw: "6", style: { align: "right" } },
+          "D6": { raw: "6200", style: { align: "right", numFormat: "inr" } },
+          "E6": { raw: "=C6*D6", style: { align: "right", numFormat: "inr" } },
+          "F6": { raw: "=E6*0.18", style: { align: "right", numFormat: "inr" } },
+          "G6": { raw: "=E6+F6", style: { bold: true, align: "right", numFormat: "inr" } },
+          "H6": { raw: "=G6", style: { align: "right", numFormat: "inr", dataBar: true } },
+
+          "B8": { raw: "Grand Total (कुल योग)", style: { bold: true, bg: "#fef9c3" } },
+          "C8": { raw: "=SUM(C2:C6)", style: { bold: true, align: "right", bg: "#fef9c3" } },
+          "E8": { raw: "=SUM(E2:E6)", style: { bold: true, align: "right", bg: "#fef9c3", numFormat: "inr" } },
+          "F8": { raw: "=SUM(F2:F6)", style: { bold: true, align: "right", bg: "#fef9c3", numFormat: "inr" } },
+          "G8": { raw: "=SUM(G2:G6)", style: { bold: true, align: "right", bg: "#bbf7d0", color: "#14532d", numFormat: "inr" } },
+          "B9": { raw: "Amount in Words:", style: { bold: true, color: "#475569" } },
+          "C9": { raw: "=NUMWORDS(G8)", style: { bold: true, color: "#0f766e" } }
+        }
+      },
+      {
+        name: "छात्र रिजल्ट (Marksheet)",
+        cells: {
+          "A1": { raw: "Roll No", style: { bold: true, bg: "#dbeafe", color: "#1e3a8a", align: "center" } },
+          "B1": { raw: "Student Name", style: { bold: true, bg: "#dbeafe", color: "#1e3a8a" } },
+          "C1": { raw: "Maths (100)", style: { bold: true, bg: "#dbeafe", color: "#1e3a8a", align: "right" } },
+          "D1": { raw: "Science (100)", style: { bold: true, bg: "#dbeafe", color: "#1e3a8a", align: "right" } },
+          "E1": { raw: "English (100)", style: { bold: true, bg: "#dbeafe", color: "#1e3a8a", align: "right" } },
+          "F1": { raw: "Total (300)", style: { bold: true, bg: "#dbeafe", color: "#1e3a8a", align: "right" } },
+          "G1": { raw: "Average %", style: { bold: true, bg: "#dbeafe", color: "#1e3a8a", align: "right" } },
+          "H1": { raw: "Result Status", style: { bold: true, bg: "#dbeafe", color: "#1e3a8a", align: "center" } },
+
+          "A2": { raw: "201", style: { align: "center" } },
+          "B2": { raw: "Aarav Sharma", style: {} },
+          "C2": { raw: "88", style: { align: "right" } },
+          "D2": { raw: "92", style: { align: "right" } },
+          "E2": { raw: "84", style: { align: "right" } },
+          "F2": { raw: "=SUM(C2:E2)", style: { bold: true, align: "right" } },
+          "G2": { raw: "=ROUND(AVERAGE(C2:E2), 1)", style: { align: "right", dataBar: true } },
+          "H2": { raw: "=IF(G2>=60, \"First Div\", \"Pass\")", style: { bold: true, align: "center", color: "#15803d" } },
+
+          "A3": { raw: "202", style: { align: "center" } },
+          "B3": { raw: "Priya Rathore", style: {} },
+          "C3": { raw: "76", style: { align: "right" } },
+          "D3": { raw: "81", style: { align: "right" } },
+          "E3": { raw: "79", style: { align: "right" } },
+          "F3": { raw: "=SUM(C3:E3)", style: { bold: true, align: "right" } },
+          "G3": { raw: "=ROUND(AVERAGE(C3:E3), 1)", style: { align: "right", dataBar: true } },
+          "H3": { raw: "=IF(G3>=60, \"First Div\", \"Pass\")", style: { bold: true, align: "center", color: "#15803d" } },
+
+          "A4": { raw: "203", style: { align: "center" } },
+          "B4": { raw: "Rohan Verma", style: {} },
+          "C4": { raw: "54", style: { align: "right" } },
+          "D4": { raw: "49", style: { align: "right" } },
+          "E4": { raw: "58", style: { align: "right" } },
+          "F4": { raw: "=SUM(C4:E4)", style: { bold: true, align: "right" } },
+          "G4": { raw: "=ROUND(AVERAGE(C4:E4), 1)", style: { align: "right", dataBar: true } },
+          "H4": { raw: "=IF(G4>=60, \"First Div\", \"Second Div\")", style: { bold: true, align: "center", color: "#b45309" } },
+
+          "A5": { raw: "204", style: { align: "center" } },
+          "B5": { raw: "Neha Soni", style: {} },
+          "C5": { raw: "95", style: { align: "right" } },
+          "D5": { raw: "94", style: { align: "right" } },
+          "E5": { raw: "91", style: { align: "right" } },
+          "F5": { raw: "=SUM(C5:E5)", style: { bold: true, align: "right" } },
+          "G5": { raw: "=ROUND(AVERAGE(C5:E5), 1)", style: { align: "right", dataBar: true } },
+          "H5": { raw: "=IF(G5>=60, \"First Div\", \"Pass\")", style: { bold: true, align: "center", color: "#15803d" } }
+        }
+      },
+      {
+        name: "मासिक बजट (Monthly Budget)",
+        cells: {
+          "A1": { raw: "Category (मद)", style: { bold: true, bg: "#f3e8ff", color: "#581c87" } },
+          "B1": { raw: "Planned Budget (₹)", style: { bold: true, bg: "#f3e8ff", color: "#581c87", align: "right" } },
+          "C1": { raw: "Actual Spent (₹)", style: { bold: true, bg: "#f3e8ff", color: "#581c87", align: "right" } },
+          "D1": { raw: "Savings / Diff (₹)", style: { bold: true, bg: "#f3e8ff", color: "#581c87", align: "right" } },
+
+          "A2": { raw: "House Rent & Electricity", style: {} },
+          "B2": { raw: "15000", style: { align: "right", numFormat: "inr" } },
+          "C2": { raw: "14200", style: { align: "right", numFormat: "inr" } },
+          "D2": { raw: "=B2-C2", style: { align: "right", numFormat: "inr", bold: true } },
+
+          "A3": { raw: "Groceries & Kitchen", style: {} },
+          "B3": { raw: "8500", style: { align: "right", numFormat: "inr" } },
+          "C3": { raw: "7900", style: { align: "right", numFormat: "inr" } },
+          "D3": { raw: "=B3-C3", style: { align: "right", numFormat: "inr", bold: true } },
+
+          "A4": { raw: "Internet & Software", style: {} },
+          "B4": { raw: "2500", style: { align: "right", numFormat: "inr" } },
+          "C4": { raw: "2100", style: { align: "right", numFormat: "inr" } },
+          "D4": { raw: "=B4-C4", style: { align: "right", numFormat: "inr", bold: true } },
+
+          "A5": { raw: "Education & Books", style: {} },
+          "B5": { raw: "5000", style: { align: "right", numFormat: "inr" } },
+          "C5": { raw: "4500", style: { align: "right", numFormat: "inr" } },
+          "D5": { raw: "=B5-C5", style: { align: "right", numFormat: "inr", bold: true } },
+
+          "A7": { raw: "Total Monthly Summary", style: { bold: true, bg: "#fef9c3" } },
+          "B7": { raw: "=SUM(B2:B5)", style: { bold: true, align: "right", bg: "#fef9c3", numFormat: "inr" } },
+          "C7": { raw: "=SUM(C2:C5)", style: { bold: true, align: "right", bg: "#fef9c3", numFormat: "inr" } },
+          "D7": { raw: "=SUM(D2:D5)", style: { bold: true, align: "right", bg: "#bbf7d0", numFormat: "inr" } }
+        }
+      }
+    ];
+
+    let sheets = JSON.parse(JSON.stringify(defaultSheets));
+    let activeSheetIdx = 0;
+    let activeCell = { col: 0, row: 0 };
+    let selectionStart = { col: 0, row: 0 };
+    let selectionEnd = { col: 0, row: 0 };
+    let isSelecting = false;
+    let editingCoord = null;
+    let clipboardData = null;
+    let undoStack = [];
+    let redoStack = [];
+    let chartInstance = null;
+    let isKanbanMode = false;
+    let isMacroRecording = false;
+    let recordedMacroSteps = [];
+    let lastPivotData = [];
+
+
+    // =========================================================================
+    // COORDINATE UTILITIES & NUMBER-TO-WORDS ENGINE
+    // =========================================================================
+    function colToLetter(col) {
+      let s = "";
+      let c = col;
+      while (c >= 0) {
+        s = String.fromCharCode((c % 26) + 65) + s;
+        c = Math.floor(c / 26) - 1;
+      }
+      return s;
+    }
+
+    function letterToCol(letters) {
+      let col = 0;
+      for (let i = 0; i < letters.length; i++) {
+        col = col * 26 + (letters.toUpperCase().charCodeAt(i) - 64);
+      }
+      return col - 1;
+    }
+
+    function toCoord(col, row) {
+      return `${colToLetter(col)}${row + 1}`;
+    }
+
+    function parseCoord(coordStr) {
+      const m = String(coordStr).trim().match(/^([A-Za-z]+)(\d+)$/);
+      if (!m) return null;
+      return { col: letterToCol(m[1]), row: parseInt(m[2], 10) - 1 };
+    }
+
+    function numberToIndianWords(num) {
+      const n = Math.round(Math.abs(Number(num) || 0));
+      if (n === 0) return "Zero Rupees Only";
+      const ones = ["", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten",
+        "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen", "Seventeen", "Eighteen", "Nineteen"];
+      const tens = ["", "", "Twenty", "Thirty", "Forty", "Fifty", "Sixty", "Seventy", "Eighty", "Ninety"];
+
+      function twoDigit(val) {
+        if (val < 20) return ones[val];
+        return tens[Math.floor(val / 10)] + (val % 10 ? "-" + ones[val % 10] : "");
+      }
+
+      let parts = [];
+      let rem = n;
+      const crore = Math.floor(rem / 10000000);
+      rem %= 10000000;
+      const lakh = Math.floor(rem / 100000);
+      rem %= 100000;
+      const thousand = Math.floor(rem / 1000);
+      rem %= 1000;
+      const hundred = Math.floor(rem / 100);
+      const last = rem % 100;
+
+      if (crore > 0) parts.push(twoDigit(crore) + " Crore");
+      if (lakh > 0) parts.push(twoDigit(lakh) + " Lakh");
+      if (thousand > 0) parts.push(twoDigit(thousand) + " Thousand");
+      if (hundred > 0) parts.push(ones[hundred] + " Hundred");
+      if (last > 0) parts.push(twoDigit(last));
+
+      return "₹ " + parts.join(" ") + " Only";
+    }
+
+    function currentSheet() {
+      return sheets[activeSheetIdx];
+    }
+
+    function getCellObj(coord) {
+      return currentSheet().cells[coord] || { raw: "", style: {} };
+    }
+
+    function setCellRaw(coord, val) {
+      const sheet = currentSheet();
+      if (!sheet.cells[coord]) sheet.cells[coord] = { raw: "", style: {} };
+      sheet.cells[coord].raw = String(val);
+      if (isMacroRecording) {
+        recordedMacroSteps.push({ type: "setRaw", coord, val: String(val) });
+      }
+    }
+
+    function pushUndoState() {
+      undoStack.push(JSON.stringify(sheets));
+      if (undoStack.length > 40) undoStack.shift();
+      redoStack = [];
+    }
+
+    // =========================================================================
+    // SUPER FORMULA ENGINE (30+ FUNCTIONS INCLUDING NUMWORDS, EMI, GST, GROWTH)
+    // =========================================================================
+    function getRangeValues(rangeStr, visited = new Set()) {
+      const parts = rangeStr.split(":");
+      if (parts.length !== 2) return [];
+      const start = parseCoord(parts[0]);
+      const end = parseCoord(parts[1]);
+      if (!start || !end) return [];
+      const c1 = Math.min(start.col, end.col), c2 = Math.max(start.col, end.col);
+      const r1 = Math.min(start.row, end.row), r2 = Math.max(start.row, end.row);
+      const vals = [];
+      for (let r = r1; r <= r2; r++) {
+        for (let c = c1; c <= c2; c++) {
+          const v = evaluateCell(toCoord(c, r), visited);
+          vals.push(v);
+        }
+      }
+      return vals;
+    }
+
+    function evaluateCell(coord, visited = new Set()) {
+      if (visited.has(coord)) return "#CYCLE!";
+      const cell = currentSheet().cells[coord];
+      if (!cell || cell.raw === undefined || cell.raw === "") return "";
+      const raw = String(cell.raw).trim();
+      if (!raw.startsWith("=")) {
+        const num = Number(raw);
+        return (!isNaN(num) && raw !== "") ? num : raw;
+      }
+
+      const nextVisited = new Set(visited);
+      nextVisited.add(coord);
+      return evaluateFormulaExpression(raw.slice(1).trim(), nextVisited);
+    }
+
+    function splitFormulaArgs(argStr) {
+      const res = [];
+      let cur = "", depth = 0, inQuotes = false;
+      for (let i = 0; i < argStr.length; i++) {
+        const ch = argStr[i];
+        if (ch === '"') inQuotes = !inQuotes;
+        if (!inQuotes) {
+          if (ch === "(") depth++;
+          else if (ch === ")") depth--;
+          else if (ch === "," && depth === 0) {
+            res.push(cur.trim());
+            cur = "";
+            continue;
+          }
+        }
+        cur += ch;
+      }
+      if (cur.trim() !== "") res.push(cur.trim());
+      return res;
+    }
+
+    function evaluateFormulaExpression(expr, visited) {
+      try {
+        let s = expr.trim();
+
+        if (/^TODAY\s*\(\s*\)$/i.test(s)) return new Date().toISOString().slice(0, 10);
+        if (/^NOW\s*\(\s*\)$/i.test(s)) return new Date().toLocaleString("en-IN");
+
+        const nwMatch = s.match(/^NUMWORDS\s*\((.*)\)$/i);
+        if (nwMatch) {
+          const v = Number(cleanEvalArg(nwMatch[1], visited));
+          return numberToIndianWords(v);
+        }
+
+        const emiMatch = s.match(/^EMI\s*\((.*)\)$/i);
+        if (emiMatch) {
+          const args = splitFormulaArgs(emiMatch[1]);
+          if (args.length >= 3) {
+            const P = Number(cleanEvalArg(args[0], visited));
+            const annualR = Number(cleanEvalArg(args[1], visited));
+            const N = Number(cleanEvalArg(args[2], visited));
+            const r = annualR / 12 / 100;
+            if (r === 0) return Math.round(P / N);
+            const emi = (P * r * Math.pow(1 + r, N)) / (Math.pow(1 + r, N) - 1);
+            return Math.round(emi);
+          }
+        }
+
+        const gstMatch = s.match(/^GST\s*\((.*)\)$/i);
+        if (gstMatch) {
+          const args = splitFormulaArgs(gstMatch[1]);
+          const amt = Number(cleanEvalArg(args[0], visited));
+          const rate = args.length > 1 ? Number(cleanEvalArg(args[1], visited)) : 18;
+          return Math.round(amt * (rate / 100) * 100) / 100;
+        }
+
+        const growthMatch = s.match(/^GROWTH\s*\((.*)\)$/i);
+        if (growthMatch) {
+          const args = splitFormulaArgs(growthMatch[1]);
+          if (args.length >= 2) {
+            const nv = Number(cleanEvalArg(args[0], visited));
+            const ov = Number(cleanEvalArg(args[1], visited));
+            if (!ov) return 0;
+            return Math.round(((nv - ov) / ov) * 1000) / 10;
+          }
+        }
+
+        const txtFnMatch = s.match(/^(UPPER|LOWER|PROPER|LEN)\s*\((.*)\)$/i);
+        if (txtFnMatch) {
+          const fn = txtFnMatch[1].toUpperCase();
+          const val = String(cleanEvalArg(txtFnMatch[2], visited));
+          if (fn === "UPPER") return val.toUpperCase();
+          if (fn === "LOWER") return val.toLowerCase();
+          if (fn === "LEN") return val.length;
+          if (fn === "PROPER") return val.replace(/\w\S*/g, w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());
+        }
+
+        const ifMatch = s.match(/^IF\s*\((.*)\)$/i);
+        if (ifMatch) {
+          const args = splitFormulaArgs(ifMatch[1]);
+          if (args.length >= 2) {
+            const condVal = evaluateCondition(args[0], visited);
+            const chosen = condVal ? args[1] : (args[2] !== undefined ? args[2] : '""');
+            return cleanEvalArg(chosen, visited);
+          }
+        }
+
+        const vlookupMatch = s.match(/^VLOOKUP\s*\((.*)\)$/i);
+        if (vlookupMatch) {
+          const args = splitFormulaArgs(vlookupMatch[1]);
+          if (args.length >= 3) {
+            const key = String(cleanEvalArg(args[0], visited)).toLowerCase();
+            const rangeParts = args[1].split(":");
+            const colIdx = parseInt(cleanEvalArg(args[2], visited), 10) - 1;
+            if (rangeParts.length === 2) {
+              const st = parseCoord(rangeParts[0]);
+              const en = parseCoord(rangeParts[1]);
+              if (st && en) {
+                for (let r = st.row; r <= en.row; r++) {
+                  const firstVal = String(evaluateCell(toCoord(st.col, r), visited)).toLowerCase();
+                  if (firstVal === key) {
+                    return evaluateCell(toCoord(st.col + colIdx, r), visited);
+                  }
+                }
+                return "#N/A";
+              }
+            }
+          }
+        }
+
+        const concatMatch = s.match(/^CONCAT\s*\((.*)\)$/i);
+        if (concatMatch) {
+          const args = splitFormulaArgs(concatMatch[1]);
+          return args.map(a => cleanEvalArg(a, visited)).join("");
+        }
+
+        s = s.replace(/\b(SUM|AVERAGE|AVG|COUNT|MAX|MIN|MEDIAN)\s*\(\s*([A-Za-z]+\d+:[A-Za-z]+\d+)\s*\)/gi, (_, fn, rng) => {
+          const rawVals = getRangeValues(rng, visited);
+          const nums = rawVals.filter(v => typeof v === "number" && !isNaN(v));
+          const u = fn.toUpperCase();
+          if (u === "SUM") return nums.reduce((a, b) => a + b, 0);
+          if (u === "AVERAGE" || u === "AVG") return nums.length ? (nums.reduce((a, b) => a + b, 0) / nums.length) : 0;
+          if (u === "COUNT") return nums.length;
+          if (u === "MAX") return nums.length ? Math.max(...nums) : 0;
+          if (u === "MIN") return nums.length ? Math.min(...nums) : 0;
+          if (u === "MEDIAN") {
+            if (!nums.length) return 0;
+            const sorted = [...nums].sort((a, b) => a - b);
+            const mid = Math.floor(sorted.length / 2);
+            return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+          }
+          return 0;
+        });
+
+        const roundMatch = s.match(/^ROUND\s*\((.*)\)$/i);
+        if (roundMatch) {
+          const args = splitFormulaArgs(roundMatch[1]);
+          if (args.length === 2) {
+            const val = Number(cleanEvalArg(args[0], visited));
+            const dec = parseInt(cleanEvalArg(args[1], visited), 10) || 0;
+            const factor = Math.pow(10, dec);
+            return Math.round(val * factor) / factor;
+          }
+        }
+
+        s = s.replace(/\b([A-Za-z]{1,3}\d{1,5})\b/g, (match) => {
+          const val = evaluateCell(match.toUpperCase(), visited);
+          if (val === "" || val === undefined) return 0;
+          if (typeof val === "number") return val;
+          const n = Number(val);
+          return !isNaN(n) ? n : JSON.stringify(val);
+        });
+
+        s = s.replace(/\^/g, "**");
+        const result = Function(`"use strict"; return (${s});`)();
+        if (typeof result === "number" && !isFinite(result)) return "#DIV/0!";
+        return result;
+      } catch (err) {
+        return "#ERROR!";
+      }
+    }
+
+    function cleanEvalArg(arg, visited) {
+      const t = arg.trim();
+      if ((t.startsWith('"') && t.endsWith('"')) || (t.startsWith("'") && t.endsWith("'"))) {
+        return t.slice(1, -1);
+      }
+      if (/^[A-Za-z]{1,3}\d{1,5}$/.test(t)) {
+        return evaluateCell(t.toUpperCase(), visited);
+      }
+      return evaluateFormulaExpression(t, visited);
+    }
+
+    function evaluateCondition(condStr, visited) {
+      const m = condStr.match(/^(.*?)(>=|<=|<>|!=|=|>|<)(.*)$/);
+      if (!m) return Boolean(cleanEvalArg(condStr, visited));
+      const left = cleanEvalArg(m[1], visited);
+      const op = m[2];
+      const right = cleanEvalArg(m[3], visited);
+      if (op === ">=") return left >= right;
+      if (op === "<=") return left <= right;
+      if (op === ">") return left > right;
+      if (op === "<") return left < right;
+      if (op === "=") return String(left) === String(right);
+      if (op === "<>" || op === "!=") return String(left) !== String(right);
+      return false;
+    }
+
+    function formatDisplayValue(val, style = {}) {
+      if (val === "" || val === null || val === undefined) return "";
+      const num = Number(val);
+      if (!isNaN(num) && typeof val !== "boolean" && String(val).trim() !== "") {
+        if (style.numFormat === "inr") {
+          return "₹" + num.toLocaleString("en-IN", { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+        }
+        if (style.numFormat === "usd") {
+          return "$" + num.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+        if (style.numFormat === "percent") {
+          return (num * 100).toFixed(1) + "%";
+        }
+        if (style.numFormat === "decimal") {
+          return num.toFixed(2);
+        }
+        if (style.numFormat === "stars") {
+          const starsCount = Math.max(1, Math.min(5, Math.round(num > 5 ? num / 20 : num)));
+          return "⭐".repeat(starsCount) + ` (${num})`;
+        }
+      }
+      return String(val);
+    }
+
+    // =========================================================================
+    // INFINITE SCROLLING & EFFORTLESS BOX RESIZE (COLUMN, ROW & DIRECT CELL!)
+    // =========================================================================
+    function updateGridDimBadge() {
+      const badge = document.getElementById("gridDimBadge");
+      if (badge) {
+        badge.textContent = `∞ Grid: ${TOTAL_ROWS} Rows × ${colToLetter(TOTAL_COLS - 1)} (${TOTAL_COLS} Cols)`;
+      }
+    }
+
+    function createColHeaderTH(c) {
+      const th = document.createElement("th");
+      th.className = "col-hdr";
+      th.id = `colHdr-${c}`;
+      const w = colWidths[c] || 115;
+      th.style.width = w + "px";
+      th.style.minWidth = w + "px";
+      th.style.maxWidth = w + "px";
+      th.onclick = (e) => {
+        if (e.target.classList.contains("col-resize-handle")) return;
+        selectColumn(c);
+      };
+      th.innerHTML = `<span>${colToLetter(c)}</span><div class="col-resize-handle" title="खींचकर कॉलम चौड़ा/छोटा करें (Double-click Auto-Fit)" onmousedown="startColumnResize(event, ${c})" ondblclick="autoFitSingleColumn(event, ${c})"></div>`;
+      return th;
+    }
+
+    function createRowHeaderTH(r) {
+      const rowTh = document.createElement("th");
+      rowTh.className = "row-hdr";
+      rowTh.id = `rowHdr-${r}`;
+      const h = rowHeights[r] || 28;
+      rowTh.style.height = h + "px";
+      rowTh.onclick = (e) => {
+        if (e.target.classList.contains("row-resize-handle")) return;
+        selectRow(r);
+      };
+      rowTh.innerHTML = `<span>${r + 1}</span><div class="row-resize-handle" title="खींचकर पंक्ति की ऊंचाई बढ़ाएं/घटाएं" onmousedown="startRowResize(event, ${r})"></div>`;
+      return rowTh;
+    }
+
+    function createCellTD(c, r) {
+      const coord = toCoord(c, r);
+      const td = document.createElement("td");
+      td.className = "excel-cell";
+      td.id = `cell-${coord}`;
+      td.dataset.col = c;
+      td.dataset.row = r;
+      td.dataset.coord = coord;
+      const w = colWidths[c] || 115;
+      td.style.width = w + "px";
+      td.style.minWidth = w + "px";
+      td.style.maxWidth = w + "px";
+      if (rowHeights[r]) {
+        td.style.height = rowHeights[r] + "px";
+        td.style.minHeight = rowHeights[r] + "px";
+        td.style.maxHeight = rowHeights[r] + "px";
+      }
+      td.onmousedown = (ev) => handleCellMouseDown(ev, c, r);
+      td.onmousemove = (ev) => handleCellMouseMove(ev, td, c, r);
+      td.onmouseleave = () => clearCellResizeHover(td);
+      td.ondblclick = () => startEditingCell(c, r);
+      return td;
+    }
+
+    function clearCellResizeHover(td) {
+      td.classList.remove("resize-right-hover", "resize-bottom-hover", "resize-corner-hover");
+    }
+
+    // Detect when mouse is near ANY cell's right border, bottom border, or corner!
+    function getCellEdgeZone(ev, td) {
+      const rect = td.getBoundingClientRect();
+      const nearRight = (rect.right - ev.clientX) <= 8;
+      const nearBottom = (rect.bottom - ev.clientY) <= 7;
+      if (nearRight && nearBottom) return "corner";
+      if (nearRight) return "right";
+      if (nearBottom) return "bottom";
+      return null;
+    }
+
+    function handleCellMouseMove(ev, td, c, r) {
+      if (resizingCol !== null || resizingRow !== null) return;
+      if (isSelecting) {
+        selectionEnd = { col: c, row: r };
+        updateSelectionUI();
+        return;
+      }
+      const zone = getCellEdgeZone(ev, td);
+      clearCellResizeHover(td);
+      if (zone === "corner") td.classList.add("resize-corner-hover");
+      else if (zone === "right") td.classList.add("resize-right-hover");
+      else if (zone === "bottom") td.classList.add("resize-bottom-hover");
+    }
+
+    function buildGridDOM() {
+      const thead = document.getElementById("tableHead");
+      const tbody = document.getElementById("tableBody");
+      thead.innerHTML = "";
+      tbody.innerHTML = "";
+
+      const headTr = document.createElement("tr");
+      headTr.id = "tableHeadRow";
+      const cornerTh = document.createElement("th");
+      cornerTh.className = "corner-hdr";
+      cornerTh.title = "Select All";
+      cornerTh.textContent = "◢";
+      cornerTh.onclick = selectEntireSheet;
+      headTr.appendChild(cornerTh);
+
+      for (let c = 0; c < TOTAL_COLS; c++) {
+        headTr.appendChild(createColHeaderTH(c));
+      }
+      thead.appendChild(headTr);
+
+      const rowFrag = document.createDocumentFragment();
+      for (let r = 0; r < TOTAL_ROWS; r++) {
+        const tr = document.createElement("tr");
+        tr.id = `rowTr-${r}`;
+        tr.appendChild(createRowHeaderTH(r));
+
+        for (let c = 0; c < TOTAL_COLS; c++) {
+          tr.appendChild(createCellTD(c, r));
+        }
+        rowFrag.appendChild(tr);
+      }
+      tbody.appendChild(rowFrag);
+
+      updateGridDimBadge();
+      renderSheetValues();
+      renderSheetTabs();
+      updateSelectionUI();
+    }
+
+    function appendMoreRowsDynamic(count = 25) {
+      const tbody = document.getElementById("tableBody");
+      const frag = document.createDocumentFragment();
+      const startR = TOTAL_ROWS;
+      TOTAL_ROWS += count;
+
+      for (let r = startR; r < TOTAL_ROWS; r++) {
+        const tr = document.createElement("tr");
+        tr.id = `rowTr-${r}`;
+        tr.appendChild(createRowHeaderTH(r));
+
+        for (let c = 0; c < TOTAL_COLS; c++) {
+          tr.appendChild(createCellTD(c, r));
+        }
+        frag.appendChild(tr);
+      }
+      tbody.appendChild(frag);
+      updateGridDimBadge();
+    }
+
+    function appendMoreColsDynamic(count = 10) {
+      const headTr = document.getElementById("tableHeadRow");
+      if (!headTr) return;
+      const startC = TOTAL_COLS;
+      TOTAL_COLS += count;
+
+      for (let c = startC; c < TOTAL_COLS; c++) {
+        headTr.appendChild(createColHeaderTH(c));
+      }
+
+      for (let r = 0; r < TOTAL_ROWS; r++) {
+        const tr = document.getElementById(`rowTr-${r}`);
+        if (!tr) continue;
+        for (let c = startC; c < TOTAL_COLS; c++) {
+          tr.appendChild(createCellTD(c, r));
+        }
+      }
+      updateGridDimBadge();
+    }
+
+    function ensureGridCapacity(targetCol, targetRow) {
+      if (targetCol >= TOTAL_COLS) {
+        appendMoreColsDynamic(targetCol - TOTAL_COLS + 8);
+      }
+      if (targetRow >= TOTAL_ROWS) {
+        appendMoreRowsDynamic(targetRow - TOTAL_ROWS + 20);
+      }
+    }
+
+    // =========================================================================
+    // COLUMN, ROW & CORNER DRAG RESIZE ENGINE
+    // =========================================================================
+    let resizingCol = null;
+    let resizeStartX = 0;
+    let resizeStartWidth = 120;
+
+    let resizingRow = null;
+    let resizeStartY = 0;
+    let resizeStartHeight = 28;
+
+    function startColumnResize(e, colIdx) {
+      e.stopPropagation();
+      e.preventDefault();
+      resizingCol = colIdx;
+      resizeStartX = e.clientX;
+      resizeStartWidth = colWidths[colIdx] || 115;
+      document.body.style.cursor = "col-resize";
+    }
+
+    function startRowResize(e, rowIdx) {
+      e.stopPropagation();
+      e.preventDefault();
+      resizingRow = rowIdx;
+      resizeStartY = e.clientY;
+      resizeStartHeight = rowHeights[rowIdx] || 28;
+      document.body.style.cursor = "row-resize";
+    }
+
+    function applyColumnWidthToDOM(colIdx, newW) {
+      const clampedW = Math.max(24, Math.min(600, Math.round(newW)));
+      colWidths[colIdx] = clampedW;
+      const hdr = document.getElementById(`colHdr-${colIdx}`);
+      if (hdr) {
+        hdr.style.width = clampedW + "px";
+        hdr.style.minWidth = clampedW + "px";
+        hdr.style.maxWidth = clampedW + "px";
+      }
+      for (let r = 0; r < TOTAL_ROWS; r++) {
+        const td = document.getElementById(`cell-${toCoord(colIdx, r)}`);
+        if (td) {
+          td.style.width = clampedW + "px";
+          td.style.minWidth = clampedW + "px";
+          td.style.maxWidth = clampedW + "px";
+        }
+      }
+      const wInput = document.getElementById("colWidthInput");
+      if (wInput && activeCell.col === colIdx) wInput.value = clampedW;
+    }
+
+    function applyRowHeightToDOM(rowIdx, newH) {
+      const clampedH = Math.max(18, Math.min(360, Math.round(newH)));
+      rowHeights[rowIdx] = clampedH;
+      const rHdr = document.getElementById(`rowHdr-${rowIdx}`);
+      if (rHdr) {
+        rHdr.style.height = clampedH + "px";
+        rHdr.style.minHeight = clampedH + "px";
+        rHdr.style.maxHeight = clampedH + "px";
+      }
+      for (let c = 0; c < TOTAL_COLS; c++) {
+        const td = document.getElementById(`cell-${toCoord(c, rowIdx)}`);
+        if (td) {
+          td.style.height = clampedH + "px";
+          td.style.minHeight = clampedH + "px";
+          td.style.maxHeight = clampedH + "px";
+        }
+      }
+    }
+
+    function setExactActiveColWidth(val) {
+      const num = parseInt(val, 10);
+      if (isNaN(num)) return;
+      const { c1, c2 } = getNormalizedRange();
+      for (let c = c1; c <= c2; c++) {
+        applyColumnWidthToDOM(c, num);
+      }
+      updateSelectionUI();
+      showToast(`कॉलम की चौड़ाई ${Math.max(24, Math.min(600, num))}px सेट की गई`);
+    }
+
+    window.addEventListener("mousemove", (e) => {
+      const tip = document.getElementById("resizeTooltip");
+      if (resizingCol !== null || resizingRow !== null) {
+        let txt = [];
+        if (resizingCol !== null) {
+          const diffX = e.clientX - resizeStartX;
+          const newW = Math.max(24, Math.min(600, resizeStartWidth + diffX));
+          applyColumnWidthToDOM(resizingCol, newW);
+          txt.push(`Col ${colToLetter(resizingCol)} Width: ${Math.round(newW)}px`);
+        }
+        if (resizingRow !== null) {
+          const diffY = e.clientY - resizeStartY;
+          const newH = Math.max(18, Math.min(360, resizeStartHeight + diffY));
+          applyRowHeightToDOM(resizingRow, newH);
+          txt.push(`Row ${resizingRow + 1} Height: ${Math.round(newH)}px`);
+        }
+        if (tip) {
+          tip.style.display = "block";
+          tip.style.left = (e.clientX + 14) + "px";
+          tip.style.top = (e.clientY + 14) + "px";
+          tip.textContent = txt.join(" | ");
+        }
+      }
+    });
+
+    window.addEventListener("mouseup", () => {
+      if (resizingCol !== null || resizingRow !== null) {
+        resizingCol = null;
+        resizingRow = null;
+        document.body.style.cursor = "";
+        const tip = document.getElementById("resizeTooltip");
+        if (tip) tip.style.display = "none";
+        updateSelectionUI();
+      }
+      isSelecting = false;
+    });
+
+    // Ribbon 1-click Box Size Adjuster (W-, W+, H-, H+)
+    function adjustActiveBoxSize(dW, dH) {
+      const { c1, c2, r1, r2 } = getNormalizedRange();
+      if (dW !== 0) {
+        for (let c = c1; c <= c2; c++) {
+          const curW = colWidths[c] || 115;
+          applyColumnWidthToDOM(c, Math.max(24, Math.min(600, curW + dW)));
+        }
+      }
+      if (dH !== 0) {
+        for (let r = r1; r <= r2; r++) {
+          const curH = rowHeights[r] || 28;
+          applyRowHeightToDOM(r, Math.max(18, Math.min(360, curH + dH)));
+        }
+      }
+      updateSelectionUI();
+    }
+
+    function autoFitSingleColumn(e, colIdx) {
+      e.stopPropagation();
+      const sheet = currentSheet();
+      let maxLen = 6;
+      for (let r = 0; r < TOTAL_ROWS; r++) {
+        const coord = toCoord(colIdx, r);
+        if (sheet.cells[coord]) {
+          const disp = String(formatDisplayValue(evaluateCell(coord), sheet.cells[coord].style || ""));
+          maxLen = Math.max(maxLen, disp.length);
+        }
+      }
+      applyColumnWidthToDOM(colIdx, Math.max(85, Math.min(360, maxLen * 9 + 28)));
+      showToast(`कॉलम ${colToLetter(colIdx)} ऑटो-फ़िट किया गया`);
+    }
+
+    function autoFitAllColumns() {
+      const sheet = currentSheet();
+      const maxLens = {};
+      Object.keys(sheet.cells).forEach(coord => {
+        const p = parseCoord(coord);
+        if (!p) return;
+        const disp = String(formatDisplayValue(evaluateCell(coord), sheet.cells[coord].style || ""));
+        maxLens[p.col] = Math.max(maxLens[p.col] || 8, disp.length);
+      });
+      Object.keys(maxLens).forEach(cStr => {
+        const c = Number(cStr);
+        const w = Math.max(95, Math.min(340, maxLens[c] * 9 + 26));
+        applyColumnWidthToDOM(c, w);
+      });
+      showToast("सभी कॉलम की चौड़ाई डेटा के अनुसार ऑटो-फ़िट की गई!");
+    }
+
+    function getColumnMaxMap() {
+      const sheet = currentSheet();
+      const colMax = {};
+      Object.keys(sheet.cells).forEach(coord => {
+        const p = parseCoord(coord);
+        if (!p || p.row === 0) return;
+        const v = evaluateCell(coord);
+        if (typeof v === "number" && !isNaN(v)) {
+          colMax[p.col] = Math.max(colMax[p.col] || 0, Math.abs(v));
+        }
+      });
+      return colMax;
+    }
+
+    function renderSheetValues() {
+      const sheet = currentSheet();
+      const colMax = getColumnMaxMap();
+
+      document.querySelectorAll("td.excel-cell").forEach(td => {
+        const coord = td.dataset.coord;
+        if (editingCoord === coord) return;
+        const cell = sheet.cells[coord];
+        if (!cell || (cell.raw === "" && !cell.img && (!cell.style || Object.keys(cell.style).length === 0))) {
+          if (td.innerHTML !== "" || td.style.backgroundColor !== "") {
+            td.innerHTML = "";
+            td.style.backgroundColor = "";
+            td.style.color = "";
+            td.style.fontWeight = "400";
+            td.style.fontStyle = "normal";
+            td.style.textDecoration = "none";
+            td.classList.remove("wrap-cell");
+          }
+          return;
+        }
+
+        const st = cell.style || {};
+        td.classList.toggle("wrap-cell", !!st.wrap);
+
+        if (cell.img) {
+          td.innerHTML = `<img src="${cell.img}" class="cell-img-preview" alt="Cell Image">`;
+        } else {
+          const val = evaluateCell(coord);
+          const disp = formatDisplayValue(val, st);
+          const colIdx = Number(td.dataset.col);
+
+          if (st.dataBar && typeof val === "number" && colMax[colIdx] > 0) {
+            const pct = Math.min(100, Math.max(4, Math.round((Math.abs(val) / colMax[colIdx]) * 100)));
+            td.innerHTML = `<div class="cell-databar" style="width:${pct}%"></div><span class="cell-text-layer">${disp}</span>`;
+          } else {
+            td.textContent = disp;
+          }
+          td.style.textAlign = st.align || (typeof val === "number" ? "right" : "left");
+        }
+
+        td.style.fontWeight = st.bold ? "700" : "400";
+        td.style.fontStyle = st.italic ? "italic" : "normal";
+        td.style.textDecoration = st.underline ? "underline" : "none";
+        td.style.backgroundColor = st.bg || "";
+        td.style.color = st.color || "";
+        td.style.fontFamily = st.fontFamily || "";
+        td.style.fontSize = st.fontSize || "";
+      });
+
+      if (isKanbanMode) renderKanbanCards();
+      updateLiveStats();
+      autoSaveLocal();
+    }
+
+    function handleCellMouseDown(e, col, row) {
+      const td = document.getElementById(`cell-${toCoord(col, row)}`);
+      if (td) {
+        const zone = getCellEdgeZone(e, td);
+        if (zone === "right") {
+          startColumnResize(e, col);
+          return;
+        }
+        if (zone === "bottom") {
+          startRowResize(e, row);
+          return;
+        }
+        if (zone === "corner") {
+          startColumnResize(e, col);
+          startRowResize(e, row);
+          document.body.style.cursor = "nwse-resize";
+          return;
+        }
+      }
+
+      if (editingCoord && editingCoord !== toCoord(col, row)) {
+        commitActiveEditor();
+      }
+      activeCell = { col, row };
+      if (e.shiftKey) {
+        selectionEnd = { col, row };
+      } else {
+        selectionStart = { col, row };
+        selectionEnd = { col, row };
+        isSelecting = true;
+      }
+      updateSelectionUI();
+    }
+
+    function getNormalizedRange() {
+      return {
+        c1: Math.min(selectionStart.col, selectionEnd.col),
+        c2: Math.max(selectionStart.col, selectionEnd.col),
+        r1: Math.min(selectionStart.row, selectionEnd.row),
+        r2: Math.max(selectionStart.row, selectionEnd.row)
+      };
+    }
+
+    function updateSelectionUI(scrollIntoView = false) {
+      document.querySelectorAll(".excel-cell.selected-cell, .excel-cell.in-range").forEach(el => {
+        el.classList.remove("selected-cell", "in-range");
+      });
+      document.querySelectorAll(".col-hdr.active-hdr, .row-hdr.active-hdr").forEach(el => {
+        el.classList.remove("active-hdr");
+      });
+
+      const { c1, c2, r1, r2 } = getNormalizedRange();
+      for (let c = c1; c <= c2; c++) {
+        const ch = document.getElementById(`colHdr-${c}`);
+        if (ch) ch.classList.add("active-hdr");
+      }
+      for (let r = r1; r <= r2; r++) {
+        const rh = document.getElementById(`rowHdr-${r}`);
+        if (rh) rh.classList.add("active-hdr");
+      }
+
+      for (let r = r1; r <= r2; r++) {
+        for (let c = c1; c <= c2; c++) {
+          const td = document.getElementById(`cell-${toCoord(c, r)}`);
+          if (td && (c1 !== c2 || r1 !== r2)) {
+            td.classList.add("in-range");
+          }
+        }
+      }
+
+      const activeCoord = toCoord(activeCell.col, activeCell.row);
+      const activeTd = document.getElementById(`cell-${activeCoord}`);
+      if (activeTd) {
+        activeTd.classList.add("selected-cell");
+        if (scrollIntoView) {
+          activeTd.scrollIntoView({ block: "nearest", inline: "nearest" });
+        }
+      }
+
+      document.getElementById("nameBox").value = activeCoord;
+      const cellObj = getCellObj(activeCoord);
+      document.getElementById("formulaInput").value = cellObj.raw || "";
+
+      const curW = Math.round(colWidths[activeCell.col] || 115);
+      const curH = Math.round(rowHeights[activeCell.row] || 28);
+      const wInp = document.getElementById("colWidthInput");
+      if (wInp) wInp.value = curW;
+      const rangeStr = (c1 === c2 && r1 === r2)
+        ? `${activeCoord} (${curW}×${curH}px)`
+        : `${toCoord(c1, r1)}:${toCoord(c2, r2)}`;
+      document.getElementById("selectionBadge").textContent = rangeStr;
+
+      const st = cellObj.style || {};
+      document.getElementById("btnBold").classList.toggle("bg-slate-200", !!st.bold);
+      document.getElementById("btnItalic").classList.toggle("bg-slate-200", !!st.italic);
+      document.getElementById("btnUnderline").classList.toggle("bg-slate-200", !!st.underline);
+      document.getElementById("numFormatSelect").value = st.numFormat || "general";
+
+      updateLiveStats();
+    }
+
+    function startEditingCell(col, row, initialChar = null) {
+      ensureGridCapacity(col + 2, row + 2);
+      const coord = toCoord(col, row);
+      editingCoord = coord;
+      const td = document.getElementById(`cell-${coord}`);
+      if (!td) return;
+
+      const existingRaw = getCellObj(coord).raw || "";
+      const startVal = initialChar !== null ? initialChar : existingRaw;
+
+      td.innerHTML = `<input type="text" class="cell-editor mono" id="activeCellEditor" value="${startVal.replace(/"/g, '&quot;')}">`;
+      const input = document.getElementById("activeCellEditor");
+      input.focus();
+      if (initialChar === null) input.select();
+      else input.setSelectionRange(startVal.length, startVal.length);
+
+      input.addEventListener("input", () => {
+        document.getElementById("formulaInput").value = input.value;
+      });
+
+      input.addEventListener("keydown", (ev) => {
+        if (ev.key === "Enter") {
+          ev.preventDefault();
+          commitActiveEditor();
+          moveActiveCell(0, 1);
+        } else if (ev.key === "Tab") {
+          ev.preventDefault();
+          commitActiveEditor();
+          moveActiveCell(1, 0);
+        } else if (ev.key === "Escape") {
+          editingCoord = null;
+          renderSheetValues();
+        }
+      });
+    }
+
+    function commitActiveEditor() {
+      if (!editingCoord) return;
+      const input = document.getElementById("activeCellEditor");
+      if (input) {
+        pushUndoState();
+        setCellRaw(editingCoord, input.value);
+      }
+      editingCoord = null;
+      renderSheetValues();
+      updateSelectionUI();
+    }
+
+    function moveActiveCell(dCol, dRow) {
+      const targetCol = Math.max(0, activeCell.col + dCol);
+      const targetRow = Math.max(0, activeCell.row + dRow);
+      ensureGridCapacity(targetCol + 3, targetRow + 5);
+      activeCell = { col: targetCol, row: targetRow };
+      selectionStart = { col: targetCol, row: targetRow };
+      selectionEnd = { col: targetCol, row: targetRow };
+      updateSelectionUI(true);
+    }
+
+    function handleFormulaBarKey(e) {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        pushUndoState();
+        const coord = toCoord(activeCell.col, activeCell.row);
+        setCellRaw(coord, e.target.value);
+        renderSheetValues();
+        moveActiveCell(0, 1);
+      }
+    }
+
+    function syncFormulaToActiveCell(val) {
+      const coord = toCoord(activeCell.col, activeCell.row);
+      setCellRaw(coord, val);
+      renderSheetValues();
+    }
+
+    function jumpToCellFromNameBox(val) {
+      const parsed = parseCoord(val);
+      if (parsed && parsed.col >= 0 && parsed.row >= 0) {
+        ensureGridCapacity(parsed.col + 5, parsed.row + 15);
+        activeCell = parsed;
+        selectionStart = parsed;
+        selectionEnd = parsed;
+        updateSelectionUI(true);
+        showToast(`सेल ${toCoord(parsed.col, parsed.row)} पर पहुँचे`);
+      } else {
+        showToast("अमान्य सेल पता (उदा. AZ120 लिखें)");
+      }
+    }
+
+    window.addEventListener("keydown", (e) => {
+      const tag = document.activeElement ? document.activeElement.tagName : "";
+      if (tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA") return;
+
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") { e.preventDefault(); undoAction(); return; }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "y") { e.preventDefault(); redoAction(); return; }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "c") { e.preventDefault(); copySelection(); return; }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "v") { e.preventDefault(); pasteSelection(); return; }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "b") { e.preventDefault(); toggleCellStyle("bold"); return; }
+
+      if (e.key === "ArrowDown") { e.preventDefault(); moveActiveCell(0, 1); }
+      else if (e.key === "ArrowUp") { e.preventDefault(); moveActiveCell(0, -1); }
+      else if (e.key === "ArrowRight" || e.key === "Tab") { e.preventDefault(); moveActiveCell(1, 0); }
+      else if (e.key === "ArrowLeft") { e.preventDefault(); moveActiveCell(-1, 0); }
+      else if (e.key === "Enter") { e.preventDefault(); startEditingCell(activeCell.col, activeCell.row); }
+      else if (e.key === "Delete" || e.key === "Backspace") {
+        e.preventDefault();
+        clearSelectedCells("content");
+      } else if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        startEditingCell(activeCell.col, activeCell.row, e.key);
+      }
+    });
+
+    // =========================================================================
+    // RIBBON & FORMATTING ACTIONS
+    // =========================================================================
+    function switchRibbonTab(tabId) {
+      ["home", "super", "insert", "formulas", "data", "view"].forEach(id => {
+        const panel = document.getElementById(`ribbon-${id}`);
+        const btn = document.getElementById(`tabBtn-${id}`);
+        if (!panel || !btn) return;
+        if (id === tabId) {
+          panel.classList.remove("hidden");
+          panel.classList.add("flex");
+          btn.className = "ribbon-tab-btn bg-white text-[#107c41] font-semibold px-3.5 py-1.5 rounded-t transition";
+        } else {
+          panel.classList.add("hidden");
+          panel.classList.remove("flex");
+          btn.className = id === "super"
+            ? "ribbon-tab-btn bg-amber-400/20 text-amber-200 hover:bg-white/15 px-3.5 py-1.5 rounded-t transition font-semibold"
+            : "ribbon-tab-btn hover:bg-white/15 px-3.5 py-1.5 rounded-t transition";
+        }
+      });
+    }
+
+    function forEachSelectedCell(callback) {
+      const { c1, c2, r1, r2 } = getNormalizedRange();
+      const sheet = currentSheet();
+      for (let r = r1; r <= r2; r++) {
+        for (let c = c1; c <= c2; c++) {
+          const coord = toCoord(c, r);
+          if (!sheet.cells[coord]) sheet.cells[coord] = { raw: "", style: {} };
+          if (!sheet.cells[coord].style) sheet.cells[coord].style = {};
+          callback(sheet.cells[coord], coord, c, r);
+        }
+      }
+    }
+
+    function toggleCellStyle(prop) {
+      pushUndoState();
+      const activeCoord = toCoord(activeCell.col, activeCell.row);
+      const currentVal = !!(getCellObj(activeCoord).style && getCellObj(activeCoord).style[prop]);
+      forEachSelectedCell(cell => {
+        cell.style[prop] = !currentVal;
+      });
+      if (isMacroRecording) recordedMacroSteps.push({ type: "toggleStyle", prop });
+      renderSheetValues();
+      updateSelectionUI();
+    }
+
+    function applyCellStyle(prop, value) {
+      pushUndoState();
+      forEachSelectedCell(cell => {
+        cell.style[prop] = value;
+      });
+      if (isMacroRecording) recordedMacroSteps.push({ type: "applyStyle", prop, value });
+      renderSheetValues();
+      updateSelectionUI();
+    }
+
+    function toggleInCellDataBars() {
+      pushUndoState();
+      const activeCoord = toCoord(activeCell.col, activeCell.row);
+      const cur = !!(getCellObj(activeCoord).style && getCellObj(activeCoord).style.dataBar);
+      forEachSelectedCell(cell => {
+        cell.style.dataBar = !cur;
+      });
+      renderSheetValues();
+      showToast("In-Cell Visual Data Bars अपडेट किए गए!");
+    }
+
+    function applyConditionalHighlight() {
+      pushUndoState();
+      let count = 0;
+      forEachSelectedCell((cell, coord) => {
+        const v = evaluateCell(coord);
+        if (typeof v === "number") {
+          if (v >= 50000 || v >= 80) {
+            cell.style.bg = "#dcfce7";
+            cell.style.color = "#14532d";
+            cell.style.bold = true;
+          } else if (v < 0 || v < 50) {
+            cell.style.bg = "#fee2e2";
+            cell.style.color = "#991b1b";
+          } else {
+            cell.style.bg = "#fef9c3";
+            cell.style.color = "#854d0e";
+          }
+          count++;
+        }
+      });
+      renderSheetValues();
+      showToast(`${count} संख्यात्मक सेल्स पर कंडीशनल हाइलाइट लागू किया गया!`);
+    }
+
+    function applyHeatmapScale() {
+      pushUndoState();
+      const nums = [];
+      forEachSelectedCell((_, coord) => {
+        const v = evaluateCell(coord);
+        if (typeof v === "number" && !isNaN(v)) nums.push(v);
+      });
+      if (!nums.length) {
+        showToast("हीटमैप के लिए कृपया संख्यात्मक रेंज चुनें!");
+        return;
+      }
+      const min = Math.min(...nums), max = Math.max(...nums);
+      forEachSelectedCell((cell, coord) => {
+        const v = evaluateCell(coord);
+        if (typeof v === "number" && !isNaN(v)) {
+          const ratio = max === min ? 0.5 : (v - min) / (max - min);
+          if (ratio >= 0.66) { cell.style.bg = "#bbf7d0"; cell.style.color = "#14532d"; }
+          else if (ratio >= 0.33) { cell.style.bg = "#fef08a"; cell.style.color = "#713f12"; }
+          else { cell.style.bg = "#fecdd3"; cell.style.color = "#881337"; }
+        }
+      });
+      renderSheetValues();
+      showToast("🔥 कलर हीटमैप स्केल लागू किया गया!");
+    }
+
+    function clearSelectedCells(mode) {
+      pushUndoState();
+      forEachSelectedCell(cell => {
+        if (mode === "all" || mode === "content") {
+          cell.raw = "";
+          delete cell.img;
+        }
+        if (mode === "all") cell.style = {};
+      });
+      renderSheetValues();
+      updateSelectionUI();
+    }
+
+    function selectColumn(c) {
+      activeCell = { col: c, row: 0 };
+      selectionStart = { col: c, row: 0 };
+      selectionEnd = { col: c, row: TOTAL_ROWS - 1 };
+      updateSelectionUI();
+    }
+
+    function selectRow(r) {
+      activeCell = { col: 0, row: r };
+      selectionStart = { col: 0, row: r };
+      selectionEnd = { col: TOTAL_COLS - 1, row: r };
+      updateSelectionUI();
+    }
+
+    function selectEntireSheet() {
+      activeCell = { col: 0, row: 0 };
+      selectionStart = { col: 0, row: 0 };
+      selectionEnd = { col: TOTAL_COLS - 1, row: TOTAL_ROWS - 1 };
+      updateSelectionUI();
+    }
+
+    // =========================================================================
+    // COPY / CUT / PASTE / UNDO / REDO
+    // =========================================================================
+    function copySelection() {
+      const { c1, c2, r1, r2 } = getNormalizedRange();
+      const matrix = [];
+      for (let r = r1; r <= r2; r++) {
+        const rowArr = [];
+        for (let c = c1; c <= c2; c++) {
+          const cell = getCellObj(toCoord(c, r));
+          rowArr.push(JSON.parse(JSON.stringify(cell)));
+        }
+        matrix.push(rowArr);
+      }
+      clipboardData = matrix;
+      showToast("सेल्स कॉपी किए गए (Copied to Clipboard)");
+    }
+
+    function cutSelection() {
+      copySelection();
+      clearSelectedCells("all");
+      showToast("सेल्स कट किए गए (Cut)");
+    }
+
+    function pasteSelection() {
+      if (!clipboardData) {
+        showToast("क्लिपबोर्ड खाली है!");
+        return;
+      }
+      pushUndoState();
+      ensureGridCapacity(activeCell.col + clipboardData[0].length + 2, activeCell.row + clipboardData.length + 2);
+      const sheet = currentSheet();
+      for (let r = 0; r < clipboardData.length; r++) {
+        for (let c = 0; c < clipboardData[r].length; c++) {
+          const tc = activeCell.col + c;
+          const tr = activeCell.row + r;
+          sheet.cells[toCoord(tc, tr)] = JSON.parse(JSON.stringify(clipboardData[r][c]));
+        }
+      }
+      renderSheetValues();
+      updateSelectionUI();
+      showToast("पेस्ट किया गया (Pasted)");
+    }
+
+    function undoAction() {
+      if (!undoStack.length) {
+        showToast("Undo करने के लिए कुछ नहीं है");
+        return;
+      }
+      redoStack.push(JSON.stringify(sheets));
+      sheets = JSON.parse(undoStack.pop());
+      renderSheetValues();
+      renderSheetTabs();
+      updateSelectionUI();
+      showToast("Undo सफल");
+    }
+
+    function redoAction() {
+      if (!redoStack.length) {
+        showToast("Redo करने के लिए कुछ नहीं है");
+        return;
+      }
+      undoStack.push(JSON.stringify(sheets));
+      sheets = JSON.parse(redoStack.pop());
+      renderSheetValues();
+      renderSheetTabs();
+      updateSelectionUI();
+      showToast("Redo सफल");
+    }
+
+    // =========================================================================
+    // INSERT / DELETE ROWS, COLUMNS, PICTURES & QUICK FORMULAS
+    // =========================================================================
+    function insertPictureIntoCell(event) {
+      const file = event.target.files && event.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        pushUndoState();
+        const dataUrl = ev.target.result;
+        const coord = toCoord(activeCell.col, activeCell.row);
+        const sheet = currentSheet();
+        if (!sheet.cells[coord]) sheet.cells[coord] = { raw: "", style: {} };
+        sheet.cells[coord].img = dataUrl;
+
+        // Auto-expand cell box so picture looks great!
+        if ((colWidths[activeCell.col] || 120) < 140) applyColumnWidthToDOM(activeCell.col, 145);
+        if ((rowHeights[activeCell.row] || 28) < 90) applyRowHeightToDOM(activeCell.row, 95);
+
+        cloudMediaQueue.push({ coord, sheet: sheet.name, name: file.name, timestamp: new Date().toLocaleTimeString() });
+        const badge = document.getElementById("cloudPicCountBadge");
+        if (badge) badge.textContent = `${cloudMediaQueue.length} Photos Ready`;
+
+        renderSheetValues();
+        closeModal("googleAuthModal");
+        showToast(`🖼️ फोटो सेल ${coord} में जोड़ी गई और इसी वर्कबुक में रखी गई।`);
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function triggerGoogleSignInHook() {
+      showToast("Google Drive sync उपलब्ध नहीं है: इस ऐप में OAuth और Drive API सेटअप नहीं है।");
+    }
+
+    function shiftRows(fromRow, delta) {
+      pushUndoState();
+      const oldCells = currentSheet().cells;
+      const newCells = {};
+      Object.keys(oldCells).forEach(coord => {
+        const p = parseCoord(coord);
+        if (!p) return;
+        if (delta > 0 && p.row >= fromRow) {
+          newCells[toCoord(p.col, p.row + delta)] = oldCells[coord];
+        } else if (delta < 0) {
+          if (p.row === fromRow) return;
+          if (p.row > fromRow) newCells[toCoord(p.col, p.row - 1)] = oldCells[coord];
+          else newCells[coord] = oldCells[coord];
+        } else {
+          newCells[coord] = oldCells[coord];
+        }
+      });
+      currentSheet().cells = newCells;
+      renderSheetValues();
+    }
+
+    function shiftCols(fromCol, delta) {
+      pushUndoState();
+      const oldCells = currentSheet().cells;
+      const newCells = {};
+      Object.keys(oldCells).forEach(coord => {
+        const p = parseCoord(coord);
+        if (!p) return;
+        if (delta > 0 && p.col >= fromCol) {
+          newCells[toCoord(p.col + delta, p.row)] = oldCells[coord];
+        } else if (delta < 0) {
+          if (p.col === fromCol) return;
+          if (p.col > fromCol) newCells[toCoord(p.col - 1, p.row)] = oldCells[coord];
+          else newCells[coord] = oldCells[coord];
+        } else {
+          newCells[coord] = oldCells[coord];
+        }
+      });
+      currentSheet().cells = newCells;
+      renderSheetValues();
+    }
+
+    function insertRowAbove() { shiftRows(activeCell.row, 1); showToast("ऊपर नई पंक्ति जोड़ी गई"); }
+    function insertRowBelow() { shiftRows(activeCell.row + 1, 1); showToast("नीचे नई पंक्ति जोड़ी गई"); }
+    function deleteActiveRow() { shiftRows(activeCell.row, -1); showToast("पंक्ति हटाई गई"); }
+    function insertColLeft() { shiftCols(activeCell.col, 1); showToast("बाएं नया कॉलम जोड़ा गया"); }
+    function insertColRight() { shiftCols(activeCell.col + 1, 1); showToast("दाएं नया कॉलम जोड़ा गया"); }
+    function deleteActiveCol() { shiftCols(activeCell.col, -1); showToast("कॉलम हटाया गया"); }
+
+    function addMoreRows(count) {
+      appendMoreRowsDynamic(count);
+      showToast(`+${count} नई पंक्तियाँ जोड़ी गईं! (कुल: ${TOTAL_ROWS})`);
+    }
+
+    function addMoreCols(count) {
+      appendMoreColsDynamic(count);
+      showToast(`+${count} नए कॉलम जोड़े गए! (कुल: ${colToLetter(TOTAL_COLS - 1)})`);
+    }
+
+    function insertTimestamp() {
+      pushUndoState();
+      const today = new Date().toISOString().slice(0, 10);
+      setCellRaw(toCoord(activeCell.col, activeCell.row), today);
+      renderSheetValues();
+      updateSelectionUI();
+    }
+
+    function insertQuickFormula(fnName) {
+      pushUndoState();
+      const { c1, c2, r1, r2 } = getNormalizedRange();
+      let targetCoord = toCoord(activeCell.col, activeCell.row);
+      let expr = "";
+      if (c1 !== c2 || r1 !== r2) {
+        const rangeStr = `${toCoord(c1, r1)}:${toCoord(c2, r2)}`;
+        targetCoord = toCoord(c2, r2 + 1);
+        expr = `=${fnName}(${rangeStr})`;
+        activeCell = { col: c2, row: r2 + 1 };
+      } else {
+        const colL = colToLetter(activeCell.col);
+        const endR = Math.max(1, activeCell.row);
+        expr = `=${fnName}(${colL}2:${colL}${endR})`;
+      }
+      setCellRaw(targetCoord, expr);
+      selectionStart = { ...activeCell };
+      selectionEnd = { ...activeCell };
+      renderSheetValues();
+      updateSelectionUI();
+      showToast(`${expr} लगाया गया`);
+    }
+
+    function insertTemplateFormula(kind) {
+      const map = {
+        if: '=IF(B2>=50, "Pass", "Fail")',
+        vlookup: '=VLOOKUP(102, A2:G6, 2, 0)',
+        gst: '=ROUND(E2*0.18, 2)',
+        emi: '=EMI(500000, 9.5, 60)',
+        numwords: '=NUMWORDS(G8)',
+        concat: '=CONCAT(A2, " - ", B2)'
+      };
+      const formulaStr = map[kind] || kind;
+      pushUndoState();
+      const coord = toCoord(activeCell.col, activeCell.row);
+      setCellRaw(coord, formulaStr);
+      renderSheetValues();
+      updateSelectionUI();
+      showToast(`फ़ॉर्मूला डाला गया: ${formulaStr}`);
+    }
+
+    function recalculateAll() {
+      renderSheetValues();
+      showToast("सभी फ़ॉर्मूले री-कैलकुलेट किए गए!");
+    }
+
+    // =========================================================================
+    // BEYOND EXCEL: AI COPILOT, AUTO PIVOT, KANBAN, INVOICE, VOICE & MACROS
+    // =========================================================================
+    function openAICopilotModal() {
+      runAISheetInsights(false);
+      openModal("aiCopilotModal");
+    }
+
+    function runAISheetInsights(openDialog = true) {
+      const sheet = currentSheet();
+      let numericVals = [];
+      let totalFormulas = 0;
+      let nonEmptyCells = 0;
+      let highestRowLabel = "";
+      let highestVal = -Infinity;
+
+      Object.keys(sheet.cells).forEach(coord => {
+        const cell = sheet.cells[coord];
+        if (!cell || cell.raw === "") return;
+        nonEmptyCells++;
+        if (String(cell.raw).startsWith("=")) totalFormulas++;
+        const p = parseCoord(coord);
+        if (p && p.row > 0) {
+          const val = evaluateCell(coord);
+          if (typeof val === "number" && !isNaN(val)) {
+            numericVals.push(val);
+            const lbl = evaluateCell(toCoord(1, p.row)) || evaluateCell(toCoord(0, p.row));
+            if (lbl && !String(lbl).toLowerCase().includes("total") && val > highestVal) {
+              highestVal = val;
+              highestRowLabel = String(lbl);
+            }
+          }
+        }
+      });
+
+      const sum = numericVals.reduce((a, b) => a + b, 0);
+      const avg = numericVals.length ? (sum / numericVals.length) : 0;
+
+      const html = `
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center my-1">
+          <div class="p-2 bg-white rounded border"><div class="text-[10px] text-slate-400">भरे हुए सेल्स</div><div class="font-bold text-sm text-slate-800">${nonEmptyCells}</div></div>
+          <div class="p-2 bg-white rounded border"><div class="text-[10px] text-slate-400">सक्रिय फ़ॉर्मूले</div><div class="font-bold text-sm text-emerald-700">${totalFormulas}</div></div>
+          <div class="p-2 bg-white rounded border"><div class="text-[10px] text-slate-400">संख्यात्मक औसत</div><div class="font-bold text-sm text-indigo-700">₹${Math.round(avg).toLocaleString("en-IN")}</div></div>
+          <div class="p-2 bg-white rounded border"><div class="text-[10px] text-slate-400">शीर्ष रिकॉर्ड</div><div class="font-bold text-xs text-amber-800 truncate">${highestRowLabel || "N/A"}</div></div>
+        </div>
+        <p class="text-[11px] text-slate-600 mt-1">💡 <b>AI सुझाव:</b> ${highestRowLabel ? `इस शीट में <b>${highestRowLabel}</b> का मान (₹${highestVal.toLocaleString("en-IN")}) सबसे अधिक है।` : "डेटा तैयार है।"} आप ऊपर दिए गए <b>📥 Save Excel (.xlsx)</b> से इसे सीधे एक्सेल में डाउनलोड कर सकते हैं।</p>
+      `;
+      document.getElementById("aiInsightsContent").innerHTML = html;
+      if (openDialog) openModal("aiCopilotModal");
+    }
+
+    function runQuickAiCommand(promptText) {
+      const q = String(promptText || "").trim().toLowerCase();
+      if (!q) {
+        openAICopilotModal();
+        return;
+      }
+      if (q.includes("सैलरी") || q.includes("salary") || q.includes("payroll")) {
+        generateAISmartSheet("payroll");
+        return;
+      }
+      if (q.includes("emi") || q.includes("loan") || q.includes("लोन")) {
+        generateAISmartSheet("emi");
+        return;
+      }
+      if (q.includes("stock") || q.includes("inventory") || q.includes("स्टॉक")) {
+        generateAISmartSheet("inventory");
+        return;
+      }
+      if (q.includes("18%") || q.includes("टैक्स") || q.includes("gst")) {
+        pushUndoState();
+        forEachSelectedCell((cell, coord) => {
+          const v = evaluateCell(coord);
+          if (typeof v === "number") cell.raw = String(Math.round(v * 1.18 * 100) / 100);
+        });
+        renderSheetValues();
+        closeModal("aiCopilotModal");
+        showToast("🤖 AI ने चुने गए सेल्स में +18% GST जोड़ दिया!");
+        return;
+      }
+      if (q.includes("10%") || q.includes("बढ़ाओ")) {
+        pushUndoState();
+        forEachSelectedCell((cell, coord) => {
+          const v = evaluateCell(coord);
+          if (typeof v === "number") cell.raw = String(Math.round(v * 1.10 * 100) / 100);
+        });
+        renderSheetValues();
+        closeModal("aiCopilotModal");
+        showToast("🤖 AI ने चुने गए नंबरों को 10% बढ़ा दिया!");
+        return;
+      }
+      generateAISmartSheet("payroll");
+    }
+
+    function generateAISmartSheet(templateType) {
+      pushUndoState();
+      if (templateType === "payroll") {
+        sheets.push({
+          name: "AI Salary Payroll",
+          cells: {
+            "A1": { raw: "Emp ID", style: { bold: true, bg: "#e0e7ff", color: "#1e1b4b", align: "center" } },
+            "B1": { raw: "Employee Name", style: { bold: true, bg: "#e0e7ff", color: "#1e1b4b" } },
+            "C1": { raw: "Designation", style: { bold: true, bg: "#e0e7ff", color: "#1e1b4b" } },
+            "D1": { raw: "Basic Pay (₹)", style: { bold: true, bg: "#e0e7ff", color: "#1e1b4b", align: "right" } },
+            "E1": { raw: "HRA 20% (₹)", style: { bold: true, bg: "#e0e7ff", color: "#1e1b4b", align: "right" } },
+            "F1": { raw: "PF Ded. 12% (₹)", style: { bold: true, bg: "#e0e7ff", color: "#1e1b4b", align: "right" } },
+            "G1": { raw: "Net Salary (₹)", style: { bold: true, bg: "#e0e7ff", color: "#1e1b4b", align: "right" } },
+
+            "A2": { raw: "EMP01", style: { align: "center" } },
+            "B2": { raw: "Vikramaditya Singh", style: {} },
+            "C2": { raw: "Senior Developer", style: {} },
+            "D2": { raw: "65000", style: { align: "right", numFormat: "inr" } },
+            "E2": { raw: "=D2*0.20", style: { align: "right", numFormat: "inr" } },
+            "F2": { raw: "=D2*0.12", style: { align: "right", numFormat: "inr" } },
+            "G2": { raw: "=D2+E2-F2", style: { bold: true, align: "right", numFormat: "inr", dataBar: true } },
+
+            "A3": { raw: "EMP02", style: { align: "center" } },
+            "B3": { raw: "Anjali Kumari", style: {} },
+            "C3": { raw: "Product Manager", style: {} },
+            "D3": { raw: "78000", style: { align: "right", numFormat: "inr" } },
+            "E3": { raw: "=D3*0.20", style: { align: "right", numFormat: "inr" } },
+            "F3": { raw: "=D3*0.12", style: { align: "right", numFormat: "inr" } },
+            "G3": { raw: "=D3+E3-F3", style: { bold: true, align: "right", numFormat: "inr", dataBar: true } },
+
+            "A4": { raw: "EMP03", style: { align: "center" } },
+            "B4": { raw: "Rajeshwar Soni", style: {} },
+            "C4": { raw: "UI/UX Lead", style: {} },
+            "D4": { raw: "54000", style: { align: "right", numFormat: "inr" } },
+            "E4": { raw: "=D4*0.20", style: { align: "right", numFormat: "inr" } },
+            "F4": { raw: "=D4*0.12", style: { align: "right", numFormat: "inr" } },
+            "G4": { raw: "=D4+E4-F4", style: { bold: true, align: "right", numFormat: "inr", dataBar: true } },
+
+            "B6": { raw: "Total Monthly Payroll", style: { bold: true, bg: "#fef9c3" } },
+            "G6": { raw: "=SUM(G2:G4)", style: { bold: true, align: "right", bg: "#bbf7d0", numFormat: "inr" } },
+            "B7": { raw: "In Words:", style: { bold: true } },
+            "C7": { raw: "=NUMWORDS(G6)", style: { bold: true, color: "#107c41" } }
+          }
+        });
+      } else if (templateType === "emi") {
+        sheets.push({
+          name: "AI Loan EMI Studio",
+          cells: {
+            "A1": { raw: "Loan Type", style: { bold: true, bg: "#dcfce7", color: "#14532d" } },
+            "B1": { raw: "Principal (मूलधन ₹)", style: { bold: true, bg: "#dcfce7", color: "#14532d", align: "right" } },
+            "C1": { raw: "Interest Rate (%)", style: { bold: true, bg: "#dcfce7", color: "#14532d", align: "right" } },
+            "D1": { raw: "Tenure (Months)", style: { bold: true, bg: "#dcfce7", color: "#14532d", align: "right" } },
+            "E1": { raw: "Monthly EMI (₹)", style: { bold: true, bg: "#dcfce7", color: "#14532d", align: "right" } },
+            "F1": { raw: "Total Payable (₹)", style: { bold: true, bg: "#dcfce7", color: "#14532d", align: "right" } },
+
+            "A2": { raw: "Home Loan", style: { bold: true } },
+            "B2": { raw: "2500000", style: { align: "right", numFormat: "inr" } },
+            "C2": { raw: "8.5", style: { align: "right" } },
+            "D2": { raw: "180", style: { align: "right" } },
+            "E2": { raw: "=EMI(B2, C2, D2)", style: { bold: true, align: "right", numFormat: "inr", bg: "#fef9c3" } },
+            "F2": { raw: "=E2*D2", style: { align: "right", numFormat: "inr" } },
+
+            "A3": { raw: "Car Loan", style: { bold: true } },
+            "B3": { raw: "800000", style: { align: "right", numFormat: "inr" } },
+            "C3": { raw: "9.2", style: { align: "right" } },
+            "D3": { raw: "60", style: { align: "right" } },
+            "E3": { raw: "=EMI(B3, C3, D3)", style: { bold: true, align: "right", numFormat: "inr", bg: "#fef9c3" } },
+            "F3": { raw: "=E3*D3", style: { align: "right", numFormat: "inr" } }
+          }
+        });
+      } else {
+        sheets.push({
+          name: "AI Inventory Tracker",
+          cells: {
+            "A1": { raw: "SKU", style: { bold: true, bg: "#fef3c7", color: "#78350f" } },
+            "B1": { raw: "Item Name", style: { bold: true, bg: "#fef3c7", color: "#78350f" } },
+            "C1": { raw: "In Stock", style: { bold: true, bg: "#fef3c7", color: "#78350f", align: "right" } },
+            "D1": { raw: "Reorder Level", style: { bold: true, bg: "#fef3c7", color: "#78350f", align: "right" } },
+            "E1": { raw: "Alert Status", style: { bold: true, bg: "#fef3c7", color: "#78350f", align: "center" } },
+
+            "A2": { raw: "SKU-501", style: {} },
+            "B2": { raw: "SSD 1TB NVMe", style: {} },
+            "C2": { raw: "8", style: { align: "right" } },
+            "D2": { raw: "15", style: { align: "right" } },
+            "E2": { raw: '=IF(C2<D2, "⚠️ LOW STOCK", "✅ OK")', style: { bold: true, align: "center", color: "#dc2626" } },
+
+            "A3": { raw: "SKU-502", style: {} },
+            "B3": { raw: "DDR5 16GB RAM", style: {} },
+            "C3": { raw: "42", style: { align: "right" } },
+            "D3": { raw: "20", style: { align: "right" } },
+            "E3": { raw: '=IF(C3<D3, "⚠️ LOW STOCK", "✅ OK")', style: { bold: true, align: "center", color: "#16a34a" } }
+          }
+        });
+      }
+      switchSheet(sheets.length - 1);
+      closeModal("aiCopilotModal");
+      showToast("🤖 AI ने नई स्मार्ट शीट तैयार कर दी!");
+    }
+
+    function convertSelectedNumberToWords() {
+      pushUndoState();
+      const val = evaluateCell(toCoord(activeCell.col, activeCell.row));
+      const num = Number(val);
+      if (isNaN(num) || val === "") {
+        showToast("कृपया किसी संख्या वाले सेल पर क्लिक करें!");
+        return;
+      }
+      const words = numberToIndianWords(num);
+      const targetCoord = toCoord(activeCell.col, activeCell.row + 1);
+      setCellRaw(targetCoord, words);
+      renderSheetValues();
+      showToast(`शब्दों में लिखा गया: ${words}`);
+    }
+
+    function toggleKanbanView() {
+      isKanbanMode = !isKanbanMode;
+      const table = document.getElementById("spreadsheetTable");
+      const kanban = document.getElementById("kanbanBoardContainer");
+      const btn = document.getElementById("btnKanbanToggle");
+      if (isKanbanMode) {
+        table.classList.add("hidden");
+        kanban.classList.remove("hidden");
+        btn.classList.add("bg-amber-400", "text-slate-950");
+        renderKanbanCards();
+      } else {
+        table.classList.remove("hidden");
+        kanban.classList.add("hidden");
+        btn.classList.remove("bg-amber-400", "text-slate-950");
+      }
+    }
+
+    function renderKanbanCards() {
+      const container = document.getElementById("kanbanCardsGrid");
+      if (!container) return;
+      const headers = [];
+      for (let c = 0; c < 10; c++) {
+        const h = evaluateCell(toCoord(c, 0));
+        if (h !== "") headers.push({ col: c, title: h });
+      }
+      const cardsHtml = [];
+      for (let r = 1; r < TOTAL_ROWS; r++) {
+        const primaryTitle = evaluateCell(toCoord(1, r)) || evaluateCell(toCoord(0, r));
+        if (!primaryTitle) continue;
+        let fieldsHtml = "";
+        headers.forEach(h => {
+          const val = formatDisplayValue(evaluateCell(toCoord(h.col, r)), getCellObj(toCoord(h.col, r)).style || {});
+          if (val !== "") {
+            fieldsHtml += `<div class="flex justify-between py-1 border-b border-slate-100 text-xs"><span class="text-slate-500">${h.title}:</span><span class="font-semibold text-slate-800">${val}</span></div>`;
+          }
+        });
+        cardsHtml.push(`
+          <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 hover:shadow-md transition">
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-50 text-emerald-700">Row #${r + 1}</span>
+              <button onclick="toggleKanbanView(); jumpToCellFromNameBox('A${r + 1}')" class="text-[11px] text-indigo-600 hover:underline">✏️ Edit Row</button>
+            </div>
+            <div class="font-bold text-sm text-slate-900 mb-2">${primaryTitle}</div>
+            <div class="space-y-0.5">${fieldsHtml}</div>
+          </div>
+        `);
+      }
+      container.innerHTML = cardsHtml.length ? cardsHtml.join("") : `<div class="text-sm text-slate-500">इस शीट में कोई कार्ड डेटा नहीं मिला।</div>`;
+    }
+
+    function openPivotModal() {
+      const groups = {};
+      let grandTotal = 0;
+      for (let r = 1; r < TOTAL_ROWS; r++) {
+        const cat = String(evaluateCell(toCoord(1, r)) || evaluateCell(toCoord(0, r))).trim();
+        if (!cat || cat.toLowerCase().includes("total") || cat.toLowerCase().includes("words")) continue;
+        let rowNum = 0;
+        for (let c = 2; c < 10; c++) {
+          const v = evaluateCell(toCoord(c, r));
+          if (typeof v === "number" && !isNaN(v)) rowNum = v;
+        }
+        if (!groups[cat]) groups[cat] = { count: 0, sum: 0 };
+        groups[cat].count += 1;
+        groups[cat].sum += rowNum;
+        grandTotal += rowNum;
+      }
+
+      lastPivotData = Object.keys(groups).map(k => ({
+        category: k,
+        count: groups[k].count,
+        sum: groups[k].sum,
+        avg: groups[k].count ? (groups[k].sum / groups[k].count) : 0,
+        share: grandTotal ? ((groups[k].sum / grandTotal) * 100).toFixed(1) + "%" : "0%"
+      }));
+
+      let tbl = `<table class="w-full text-xs border-collapse">
+        <thead><tr class="bg-emerald-50 text-emerald-950 font-bold border-b border-slate-200">
+          <th class="p-2.5 text-left">Category / Group</th>
+          <th class="p-2.5 text-right">Count</th>
+          <th class="p-2.5 text-right">Total Value (₹)</th>
+          <th class="p-2.5 text-right">Average (₹)</th>
+          <th class="p-2.5 text-right">% Share</th>
+        </tr></thead><tbody>`;
+      lastPivotData.forEach(item => {
+        tbl += `<tr class="border-b border-slate-100 hover:bg-slate-50">
+          <td class="p-2 font-medium">${item.category}</td>
+          <td class="p-2 text-right">${item.count}</td>
+          <td class="p-2 text-right font-semibold">₹${item.sum.toLocaleString("en-IN", { maximumFractionDigits: 2 })}</td>
+          <td class="p-2 text-right">₹${item.avg.toLocaleString("en-IN", { maximumFractionDigits: 2 })}</td>
+          <td class="p-2 text-right text-emerald-700 font-bold">${item.share}</td>
+        </tr>`;
+      });
+      tbl += `</tbody></table>`;
+      document.getElementById("pivotTableContainer").innerHTML = tbl;
+      openModal("pivotModal");
+    }
+
+    function exportPivotAsNewSheet() {
+      if (!lastPivotData.length) return;
+      pushUndoState();
+      const cells = {
+        "A1": { raw: "Category / Group", style: { bold: true, bg: "#dcfce7" } },
+        "B1": { raw: "Count", style: { bold: true, bg: "#dcfce7", align: "right" } },
+        "C1": { raw: "Total Sum (₹)", style: { bold: true, bg: "#dcfce7", align: "right" } },
+        "D1": { raw: "% Share", style: { bold: true, bg: "#dcfce7", align: "right" } }
+      };
+      lastPivotData.forEach((row, i) => {
+        const r = i + 2;
+        cells[`A${r}`] = { raw: row.category, style: {} };
+        cells[`B${r}`] = { raw: String(row.count), style: { align: "right" } };
+        cells[`C${r}`] = { raw: String(Math.round(row.sum * 100) / 100), style: { align: "right", numFormat: "inr", dataBar: true } };
+        cells[`D${r}`] = { raw: row.share, style: { align: "right", bold: true } };
+      });
+      sheets.push({ name: `Pivot_${sheets.length + 1}`, cells });
+      switchSheet(sheets.length - 1);
+      closeModal("pivotModal");
+      showToast("Pivot Table को नई शीट के रूप में जोड़ दिया गया!");
+    }
+
+    function openInvoiceModal() {
+      let rowsHtml = "";
+      let grand = 0;
+      for (let r = 1; r < 15; r++) {
+        const item = evaluateCell(toCoord(1, r)) || evaluateCell(toCoord(0, r));
+        if (!item || String(item).toLowerCase().includes("total") || String(item).toLowerCase().includes("words")) continue;
+        const qty = evaluateCell(toCoord(2, r)) || 1;
+        const rate = evaluateCell(toCoord(3, r)) || 0;
+        const total = evaluateCell(toCoord(6, r)) || evaluateCell(toCoord(4, r)) || (Number(qty) * Number(rate));
+        if (typeof total === "number") grand += total;
+        rowsHtml += `<tr class="border-b">
+          <td class="p-2">${r}</td>
+          <td class="p-2 font-semibold">${item}</td>
+          <td class="p-2 text-right">${qty}</td>
+          <td class="p-2 text-right">₹${Number(rate).toLocaleString("en-IN")}</td>
+          <td class="p-2 text-right font-bold">₹${Number(total).toLocaleString("en-IN")}</td>
+        </tr>`;
+      }
+      const html = `
+        <div class="flex justify-between items-start border-b pb-3">
+          <div>
+            <div class="text-base font-extrabold text-emerald-800">EXCEL STUDIO PRO ENTERPRISE</div>
+            <div class="text-[11px] text-slate-500">GSTIN: 08AABCU9603R1ZM • Tax Invoice / Official Statement</div>
+          </div>
+          <div class="text-right">
+            <div class="font-bold">Invoice #INV-${new Date().getFullYear()}-089</div>
+            <div class="text-slate-500">Date: ${new Date().toISOString().slice(0, 10)}</div>
+          </div>
+        </div>
+        <table class="w-full text-xs border-collapse mt-2">
+          <thead><tr class="bg-slate-100 border-b">
+            <th class="p-2 text-left">#</th>
+            <th class="p-2 text-left">Description</th>
+            <th class="p-2 text-right">Qty</th>
+            <th class="p-2 text-right">Rate</th>
+            <th class="p-2 text-right">Total (Incl. Tax)</th>
+          </tr></thead>
+          <tbody>${rowsHtml}</tbody>
+        </table>
+        <div class="flex justify-between items-center bg-emerald-50 p-3 rounded-lg border border-emerald-200 mt-3">
+          <div>
+            <div class="text-[11px] text-slate-500">Amount in Words:</div>
+            <div class="font-bold text-emerald-950">${numberToIndianWords(grand)}</div>
+          </div>
+          <div class="text-right">
+            <div class="text-xs text-slate-500">Grand Total</div>
+            <div class="text-lg font-extrabold text-emerald-800">₹${grand.toLocaleString("en-IN")}</div>
+          </div>
+        </div>
+      `;
+      document.getElementById("invoicePreviewContent").innerHTML = html;
+      openModal("invoiceModal");
+    }
+
+    function startVoiceToCell() {
+      const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SpeechRec) {
+        showToast("इस ब्राउज़र में Voice Dictation उपलब्ध नहीं है");
+        return;
+      }
+      const rec = new SpeechRec();
+      rec.lang = "hi-IN";
+      showToast("🎙️ बोलिए... आपकी आवाज़ सक्रिय सेल में लिखी जाएगी");
+      rec.onresult = (ev) => {
+        const text = ev.results[0][0].transcript;
+        pushUndoState();
+        setCellRaw(toCoord(activeCell.col, activeCell.row), text);
+        renderSheetValues();
+        updateSelectionUI();
+        showToast(`🎙️ लिखा गया: "${text}"`);
+      };
+      rec.onerror = () => showToast("Voice इनपुट पूरा हुआ");
+      rec.start();
+    }
+
+    function speakSheetSummary() {
+      if (!("speechSynthesis" in window)) {
+        showToast("Speech Synthesis उपलब्ध नहीं है");
+        return;
+      }
+      window.speechSynthesis.cancel();
+      const coord = toCoord(activeCell.col, activeCell.row);
+      const val = evaluateCell(coord);
+      const msg = val !== ""
+        ? `Cell ${coord} value is ${val}`
+        : `Sheet ${currentSheet().name} is active. Select a cell to hear its value.`;
+      const utter = new SpeechSynthesisUtterance(msg);
+      utter.lang = "en-IN";
+      window.speechSynthesis.speak(utter);
+      showToast(`🔊 बोला जा रहा है: ${msg}`);
+    }
+
+    function toggleMacroRecording() {
+      isMacroRecording = !isMacroRecording;
+      const btn = document.getElementById("btnMacroRecord");
+      if (isMacroRecording) {
+        recordedMacroSteps = [];
+        btn.textContent = "⏹ Stop Macro";
+        btn.classList.add("bg-rose-600", "text-white");
+        showToast("🔴 Macro रिकॉर्डिंग शुरू! अब जो भी करेंगे वह रिकॉर्ड होगा।");
+      } else {
+        btn.textContent = "🔴 Record Macro";
+        btn.classList.remove("bg-rose-600", "text-white");
+        showToast(`✅ Macro सुरक्षित! (${recordedMacroSteps.length} स्टेप्स रिकॉर्ड किए गए)`);
+      }
+    }
+
+    function playRecordedMacro() {
+      if (!recordedMacroSteps.length) {
+        showToast("पहले '🔴 Record Macro' दबाकर कुछ स्टेप्स रिकॉर्ड करें!");
+        return;
+      }
+      pushUndoState();
+      recordedMacroSteps.forEach(step => {
+        if (step.type === "setRaw") setCellRaw(step.coord, step.val);
+        else if (step.type === "toggleStyle") toggleCellStyle(step.prop);
+        else if (step.type === "applyStyle") applyCellStyle(step.prop, step.value);
+      });
+      renderSheetValues();
+      showToast(`▶️ Macro सफलतापूर्वक चलाया गया (${recordedMacroSteps.length} स्टेप्स)!`);
+    }
+
+    function saveSnapshotVersion() {
+      pushUndoState();
+      autoSaveLocal();
+      showToast(`⏱️ Snapshot Saved (${new Date().toLocaleTimeString()}) — आप कभी भी Undo से वापस आ सकते हैं!`);
+    }
+
+    function smartCleanSheetData() {
+      pushUndoState();
+      const sheet = currentSheet();
+      let cleaned = 0;
+      Object.keys(sheet.cells).forEach(coord => {
+        const c = sheet.cells[coord];
+        if (c && typeof c.raw === "string" && !c.raw.startsWith("=")) {
+          const trimmed = c.raw.replace(/\s+/g, " ").trim();
+          if (trimmed !== c.raw) {
+            c.raw = trimmed;
+            cleaned++;
+          }
+        }
+      });
+      renderSheetValues();
+      showToast(`✨ Smart Clean: ${cleaned} सेल्स से अतिरिक्त स्पेस और गंदगी साफ़ की गई!`);
+    }
+
+    // =========================================================================
+    // DATA TOOLS: SORT, AUTO-FILL SERIES, DEDUPLICATE, SEARCH, GOAL SEEK
+    // =========================================================================
+    function sortColumn(dir) {
+      pushUndoState();
+      const col = activeCell.col;
+      const sheet = currentSheet();
+
+      const rowsData = [];
+      for (let r = 1; r < TOTAL_ROWS; r++) {
+        let hasData = false;
+        const rowObj = {};
+        for (let c = 0; c < TOTAL_COLS; c++) {
+          const cell = sheet.cells[toCoord(c, r)];
+          if (cell && cell.raw !== "") {
+            hasData = true;
+            rowObj[c] = JSON.parse(JSON.stringify(cell));
+          }
+        }
+        if (hasData) {
+          const sortVal = evaluateCell(toCoord(col, r));
+          rowsData.push({ sortVal, rowObj });
+        }
+      }
+
+      rowsData.sort((a, b) => {
+        const va = a.sortVal, vb = b.sortVal;
+        if (typeof va === "number" && typeof vb === "number") {
+          return dir === "asc" ? va - vb : vb - va;
+        }
+        return dir === "asc"
+          ? String(va).localeCompare(String(vb))
+          : String(vb).localeCompare(String(va));
+      });
+
+      for (let r = 1; r < TOTAL_ROWS; r++) {
+        for (let c = 0; c < TOTAL_COLS; c++) {
+          delete sheet.cells[toCoord(c, r)];
+        }
+      }
+      rowsData.forEach((item, idx) => {
+        const targetRow = idx + 1;
+        Object.keys(item.rowObj).forEach(c => {
+          sheet.cells[toCoord(Number(c), targetRow)] = item.rowObj[c];
+        });
+      });
+
+      renderSheetValues();
+      showToast(`कॉलम ${colToLetter(col)} को ${dir === 'asc' ? 'A → Z' : 'Z → A'} सॉर्ट किया गया`);
+    }
+
+    function fillSeriesDown() {
+      pushUndoState();
+      const { c1, c2, r1, r2 } = getNormalizedRange();
+      if (r2 <= r1) {
+        showToast("कृपया ऊपर की संख्या से नीचे तक रेंज सेलेक्ट करें");
+        return;
+      }
+      for (let c = c1; c <= c2; c++) {
+        const startVal = Number(evaluateCell(toCoord(c, r1)));
+        const base = !isNaN(startVal) ? startVal : 1;
+        for (let r = r1; r <= r2; r++) {
+          setCellRaw(toCoord(c, r), base + (r - r1));
+        }
+      }
+      renderSheetValues();
+      showToast("Auto-Series (1, 2, 3...) भरी गई!");
+    }
+
+    function removeDuplicateRows() {
+      pushUndoState();
+      const sheet = currentSheet();
+      const seen = new Set();
+      let removed = 0;
+      const keptRows = [];
+
+      for (let r = 0; r < TOTAL_ROWS; r++) {
+        const sigParts = [];
+        let nonEmpty = false;
+        const rowCells = {};
+        for (let c = 0; c < TOTAL_COLS; c++) {
+          const cell = sheet.cells[toCoord(c, r)];
+          const v = cell ? cell.raw : "";
+          if (v !== "") nonEmpty = true;
+          sigParts.push(v);
+          if (cell) rowCells[c] = cell;
+        }
+        if (!nonEmpty) continue;
+        const sig = sigParts.join("||");
+        if (seen.has(sig)) {
+          removed++;
+        } else {
+          seen.add(sig);
+          keptRows.push(rowCells);
+        }
+      }
+
+      sheet.cells = {};
+      keptRows.forEach((rowCells, idx) => {
+        Object.keys(rowCells).forEach(c => {
+          sheet.cells[toCoord(Number(c), idx)] = rowCells[c];
+        });
+      });
+      renderSheetValues();
+      showToast(`${removed} डुप्लीकेट पंक्तियाँ हटाई गईं`);
+    }
+
+    function filterRowsBySearch(query) {
+      const q = query.trim().toLowerCase();
+      for (let r = 1; r < TOTAL_ROWS; r++) {
+        const tr = document.getElementById(`rowTr-${r}`);
+        if (!tr) continue;
+        if (!q) {
+          tr.style.display = "";
+          continue;
+        }
+        let rowHasEmpty = true;
+        let match = false;
+        for (let c = 0; c < TOTAL_COLS; c++) {
+          const v = String(evaluateCell(toCoord(c, r))).toLowerCase();
+          if (v !== "") rowHasEmpty = false;
+          if (v.includes(q)) { match = true; break; }
+        }
+        tr.style.display = (rowHasEmpty || match) ? "" : "none";
+      }
+    }
+
+    function executeFindReplace() {
+      const findStr = document.getElementById("findTextInput").value;
+      const replStr = document.getElementById("replaceTextInput").value;
+      if (!findStr) return;
+      pushUndoState();
+      const sheet = currentSheet();
+      let count = 0;
+      Object.keys(sheet.cells).forEach(coord => {
+        const raw = sheet.cells[coord].raw;
+        if (raw && raw.includes(findStr)) {
+          sheet.cells[coord].raw = raw.split(findStr).join(replStr);
+          count++;
+        }
+      });
+      renderSheetValues();
+      closeModal("findReplaceModal");
+      showToast(`${count} सेल्स में टेक्स्ट बदला गया!`);
+    }
+
+    function runGoalSeek() {
+      const formulaCoord = document.getElementById("gsFormulaCell").value.trim().toUpperCase();
+      const targetVal = parseFloat(document.getElementById("gsTargetVal").value);
+      const changeCoord = document.getElementById("gsChangeCell").value.trim().toUpperCase();
+      if (!parseCoord(formulaCoord) || !parseCoord(changeCoord) || isNaN(targetVal)) {
+        showToast("कृपया सही सेल पता और लक्ष्य संख्या भरें");
+        return;
+      }
+      pushUndoState();
+      let low = -1e7, high = 1e7, best = 0;
+      for (let iter = 0; iter < 65; iter++) {
+        const mid = (low + high) / 2;
+        setCellRaw(changeCoord, mid);
+        const val = Number(evaluateCell(formulaCoord));
+        if (isNaN(val)) break;
+        best = mid;
+        if (Math.abs(val - targetVal) < 0.01) break;
+        setCellRaw(changeCoord, mid + 1);
+        const valNext = Number(evaluateCell(formulaCoord));
+        const increasing = valNext >= val;
+        if ((increasing && val < targetVal) || (!increasing && val > targetVal)) {
+          low = mid;
+        } else {
+          high = mid;
+        }
+      }
+      setCellRaw(changeCoord, Math.round(best * 100) / 100);
+      renderSheetValues();
+      closeModal("goalSeekModal");
+      showToast(`Goal Seek सफल: ${changeCoord} = ${Math.round(best * 100) / 100}`);
+    }
+
+    // =========================================================================
+    // CHARTS STUDIO
+    // =========================================================================
+    function openChartModal(type) {
+      document.getElementById("chartTypeSelector").value = type;
+      openModal("chartModal");
+      renderActiveChart(type);
+    }
+
+    function renderActiveChart(type) {
+      const labels = [];
+      const values = [];
+
+      for (let r = 1; r < TOTAL_ROWS; r++) {
+        const lbl = evaluateCell(toCoord(1, r)) || evaluateCell(toCoord(0, r));
+        let numVal = null;
+        for (let c = 2; c < 8; c++) {
+          const v = evaluateCell(toCoord(c, r));
+          if (typeof v === "number" && !isNaN(v)) numVal = v;
+        }
+        if (numVal === null) {
+          const v1 = evaluateCell(toCoord(1, r));
+          if (typeof v1 === "number") numVal = v1;
+        }
+        if (lbl && numVal !== null && !String(lbl).toLowerCase().includes("total") && !String(lbl).toLowerCase().includes("words")) {
+          labels.push(String(lbl).slice(0, 22));
+          values.push(numVal);
+        }
+      }
+
+      const ctx = document.getElementById("excelChartCanvas").getContext("2d");
+      if (chartInstance) chartInstance.destroy();
+
+      chartInstance = new Chart(ctx, {
+        type: type,
+        data: {
+          labels: labels.length ? labels : ["Item 1", "Item 2", "Item 3"],
+          datasets: [{
+            label: currentSheet().name,
+            data: values.length ? values : [120, 250, 180],
+            backgroundColor: [
+              "#107c41", "#2563eb", "#f59e0b", "#9333ea", "#e11d48", "#0d9488", "#4f46e5"
+            ],
+            borderColor: "#107c41",
+            borderWidth: 2,
+            tension: 0.3
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { position: "bottom" }
+          }
+        }
+      });
+    }
+
+    // =========================================================================
+    // MULTI-SHEET TABS & STATUS BAR
+    // =========================================================================
+    function renderSheetTabs() {
+      const container = document.getElementById("sheetTabsContainer");
+      container.innerHTML = sheets.map((sh, idx) => {
+        const isAct = idx === activeSheetIdx;
+        return `<div class="flex items-center rounded border shrink-0 ${isAct ? 'bg-white border-emerald-600 text-emerald-800 font-bold shadow-sm' : 'bg-slate-200 border-slate-300 text-slate-600 hover:bg-slate-300'}">
+          <button onclick="switchSheet(${idx})" class="px-3 py-1 text-xs">${sh.name}</button>
+          ${sheets.length > 1 ? `<button onclick="deleteSheet(${idx})" class="pr-1.5 text-[10px] text-slate-400 hover:text-rose-600" title="Delete Sheet">✕</button>` : ''}
+        </div>`;
+      }).join("");
+    }
+
+    function switchSheet(idx) {
+      if (editingCoord) commitActiveEditor();
+      activeSheetIdx = idx;
+      activeCell = { col: 0, row: 0 };
+      selectionStart = { col: 0, row: 0 };
+      selectionEnd = { col: 0, row: 0 };
+      renderSheetValues();
+      renderSheetTabs();
+      updateSelectionUI();
+    }
+
+    function addNewBlankPage() {
+      pushUndoState();
+      const pageNum = sheets.length + 1;
+      sheets.push({
+        name: `Page ${pageNum} (Blank)`,
+        cells: {}
+      });
+      if (isKanbanMode) toggleKanbanView();
+      switchSheet(sheets.length - 1);
+      const gw = document.getElementById("gridWrapper");
+      if (gw) { gw.scrollTop = 0; gw.scrollLeft = 0; }
+      showToast(`📄 नया खाली पेज (Page ${pageNum}) खुल गया है!`);
+    }
+
+    function addNewSheet() {
+      addNewBlankPage();
+    }
+
+    function startFreshBlankWorkbook() {
+      pushUndoState();
+      sheets = [
+        { name: "Page 1 (Blank)", cells: {} }
+      ];
+      if (isKanbanMode) toggleKanbanView();
+      switchSheet(0);
+      closeModal("newPageModal");
+      const gw = document.getElementById("gridWrapper");
+      if (gw) { gw.scrollTop = 0; gw.scrollLeft = 0; }
+      showToast("🆕 बिल्कुल नई खाली एक्सेल फ़ाइल (Page 1) शुरू हो गई है!");
+    }
+
+    function deleteSheet(idx) {
+      if (sheets.length <= 1) return;
+      pushUndoState();
+      sheets.splice(idx, 1);
+      if (activeSheetIdx >= sheets.length) activeSheetIdx = sheets.length - 1;
+      switchSheet(activeSheetIdx);
+      showToast("शीट हटाई गई");
+    }
+
+    function renameCurrentSheetPrompt() {
+      document.getElementById("renameSheetInput").value = currentSheet().name;
+      openModal("renameSheetModal");
+    }
+
+    function confirmRenameSheet() {
+      const val = document.getElementById("renameSheetInput").value.trim();
+      if (val) {
+        currentSheet().name = val;
+        renderSheetTabs();
+        autoSaveLocal();
+      }
+      closeModal("renameSheetModal");
+    }
+
+    function updateLiveStats() {
+      const { c1, c2, r1, r2 } = getNormalizedRange();
+      let count = 0;
+      const nums = [];
+      for (let r = r1; r <= r2; r++) {
+        for (let c = c1; c <= c2; c++) {
+          const v = evaluateCell(toCoord(c, r));
+          if (v !== "" && v !== null && v !== undefined) {
+            count++;
+            if (typeof v === "number" && !isNaN(v)) nums.push(v);
+          }
+        }
+      }
+      const sum = nums.reduce((a, b) => a + b, 0);
+      const avg = nums.length ? (sum / nums.length) : 0;
+      const min = nums.length ? Math.min(...nums) : 0;
+      const max = nums.length ? Math.max(...nums) : 0;
+
+      document.getElementById("statCount").innerHTML = `Count: <b>${count}</b>`;
+      document.getElementById("statSum").innerHTML = `Sum (योग): <b>${sum.toLocaleString("en-IN", { maximumFractionDigits: 2 })}</b>`;
+      document.getElementById("statAvg").innerHTML = `Avg (औसत): <b>${avg.toLocaleString("en-IN", { maximumFractionDigits: 2 })}</b>`;
+      document.getElementById("statMin").innerHTML = `Min: <b>${min.toLocaleString("en-IN", { maximumFractionDigits: 2 })}</b>`;
+      document.getElementById("statMax").innerHTML = `Max: <b>${max.toLocaleString("en-IN", { maximumFractionDigits: 2 })}</b>`;
+    }
+
+    // =========================================================================
+    // DIRECT MICROSOFT EXCEL (.XLSX) SAVE & OPEN ENGINE
+    // =========================================================================
+    function exportExcelXLSX() {
+      try {
+        if (typeof XLSX !== "undefined") {
+          const wb = XLSX.utils.book_new();
+          sheets.forEach((sh, idx) => {
+            let maxC = 0, maxR = 0;
+            Object.keys(sh.cells).forEach(coord => {
+              const p = parseCoord(coord);
+              if (p) {
+                maxC = Math.max(maxC, p.col);
+                maxR = Math.max(maxR, p.row);
+              }
+            });
+            const aoa = [];
+            const prevIdx = activeSheetIdx;
+            activeSheetIdx = idx;
+            for (let r = 0; r <= maxR; r++) {
+              const rowArr = [];
+              for (let c = 0; c <= maxC; c++) {
+                const coord = toCoord(c, r);
+                const val = evaluateCell(coord);
+                rowArr.push(val === undefined ? "" : val);
+              }
+              aoa.push(rowArr);
+            }
+            activeSheetIdx = prevIdx;
+            const ws = XLSX.utils.aoa_to_sheet(aoa);
+            const colsMeta = [];
+            for (let c = 0; c <= maxC; c++) {
+              colsMeta.push({ wpx: colWidths[c] || 120 });
+            }
+            ws["!cols"] = colsMeta;
+            const safeName = (sh.name || `Sheet${idx + 1}`).replace(/[\\/?*\[\]:]/g, "_").slice(0, 31);
+            XLSX.utils.book_append_sheet(wb, ws, safeName);
+          });
+          XLSX.writeFile(wb, "Excel_Studio_Workbook.xlsx");
+          showToast("📥 Microsoft Excel (.xlsx) फ़ाइल सफलतापूर्वक डाउनलोड हो गई!");
+          return;
+        }
+      } catch (err) {}
+      exportCSV();
+    }
+
+    function importExcelOrCSVFile(event) {
+      const file = event.target.files && event.target.files[0];
+      if (!file) return;
+      const ext = file.name.split(".").pop().toLowerCase();
+
+      if ((ext === "xlsx" || ext === "xls") && typeof XLSX !== "undefined") {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          pushUndoState();
+          const data = new Uint8Array(e.target.result);
+          const wb = XLSX.read(data, { type: "array" });
+          const importedSheets = [];
+          let maxC = 0, maxR = 0;
+
+          wb.SheetNames.forEach(shName => {
+            const ws = wb.Sheets[shName];
+            const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
+            const newCells = {};
+            aoa.forEach((rowArr, rIdx) => {
+              maxR = Math.max(maxR, rIdx);
+              rowArr.forEach((val, cIdx) => {
+                maxC = Math.max(maxC, cIdx);
+                if (val !== "" && val !== null && val !== undefined) {
+                  newCells[toCoord(cIdx, rIdx)] = {
+                    raw: String(val),
+                    style: rIdx === 0 ? { bold: true, bg: "#dcfce7" } : {}
+                  };
+                }
+              });
+            });
+            importedSheets.push({ name: shName, cells: newCells });
+          });
+
+          if (importedSheets.length > 0) {
+            ensureGridCapacity(maxC + 5, maxR + 15);
+            sheets = importedSheets;
+            switchSheet(0);
+            showToast(`📂 Excel वर्कबुक (${importedSheets.length} शीट्स) सफलतापूर्वक खुल गई!`);
+          }
+        };
+        reader.readAsArrayBuffer(file);
+      } else {
+        importCSVFile(event);
+      }
+    }
+
+    function toggleGridlines() {
+      document.getElementById("gridWrapper").classList.toggle("no-gridlines");
+    }
+
+    function toggleFreezeRow1() {
+      const gw = document.getElementById("gridWrapper");
+      gw.classList.toggle("freeze-row-1");
+      showToast(gw.classList.contains("freeze-row-1") ? "❄️ Row 1 Freeze चालू" : "Row 1 Freeze बंद");
+    }
+
+    function toggleFreezeColA() {
+      const gw = document.getElementById("gridWrapper");
+      gw.classList.toggle("freeze-col-a");
+      showToast(gw.classList.contains("freeze-col-a") ? "❄️ Column A Freeze चालू" : "Column A Freeze बंद");
+    }
+
+    function toggleDarkTheme() {
+      document.getElementById("appBody").classList.toggle("dark-theme");
+    }
+
+    function setGridZoom(val) {
+      document.getElementById("zoomLabel").textContent = val + "%";
+      document.getElementById("spreadsheetTable").style.zoom = (val / 100);
+    }
+
+    function autoSaveLocal() {
+      if (typeof window.cloudAutoSaveLocal === "function") window.cloudAutoSaveLocal();
+    }
+
+    function saveWorkbookLocal() {
+      autoSaveLocal();
+      showToast("Workbook local backup में सेव हुई; cloud status ऊपर दिखेगा।");
+    }
+
+    function exportCSV() {
+      const rows = [];
+      for (let r = 0; r < TOTAL_ROWS; r++) {
+        const line = [];
+        let hasVal = false;
+        for (let c = 0; c < TOTAL_COLS; c++) {
+          const v = evaluateCell(toCoord(c, r));
+          if (v !== "") hasVal = true;
+          const escaped = String(v).replace(/"/g, '""');
+          line.push(`"${escaped}"`);
+        }
+        if (hasVal) rows.push(line.join(","));
+      }
+      const blob = new Blob(["\uFEFF" + rows.join("\n")], { type: "text/csv;charset=utf-8;" });
+      triggerDownload(blob, `${currentSheet().name.replace(/\s+/g, "_")}.csv`);
+      showToast("CSV फ़ाइल डाउनलोड हो गई!");
+    }
+
+    function exportJSONWorkbook() {
+      const blob = new Blob([JSON.stringify(sheets, null, 2)], { type: "application/json" });
+      triggerDownload(blob, "Excel_Studio_Workbook.json");
+      showToast("पूरी वर्कबुक (.json) डाउनलोड हो गई!");
+    }
+
+    function importCSVFile(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        pushUndoState();
+        const lines = e.target.result.split(/\r?\n/);
+        const newCells = {};
+        let maxC = 0, maxR = lines.length;
+        lines.forEach((line, rIdx) => {
+          if (!line.trim()) return;
+          const cols = line.split(",").map(s => s.replace(/^"|"$/g, ""));
+          maxC = Math.max(maxC, cols.length);
+          cols.forEach((val, cIdx) => {
+            if (val !== "") {
+              newCells[toCoord(cIdx, rIdx)] = {
+                raw: val,
+                style: rIdx === 0 ? { bold: true, bg: "#dcfce7" } : {}
+              };
+            }
+          });
+        });
+        ensureGridCapacity(maxC + 5, maxR + 15);
+        currentSheet().cells = newCells;
+        renderSheetValues();
+        showToast("CSV डेटा सफलतापूर्वक इम्पोर्ट हो गया!");
+      };
+      reader.readAsText(file);
+    }
+
+    function triggerDownload(blob, filename) {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    // =========================================================================
+    // MODALS, TOAST & INFINITE SCROLL LISTENER
+    // =========================================================================
+    function openModal(id) {
+      const el = document.getElementById(id);
+      if (el) {
+        el.classList.remove("hidden");
+        el.classList.add("flex");
+      }
+    }
+
+    function closeModal(id) {
+      const el = document.getElementById(id);
+      if (el) {
+        el.classList.add("hidden");
+        el.classList.remove("flex");
+      }
+    }
+
+    let toastTimer = null;
+    function showToast(msg) {
+      const box = document.getElementById("toastBox");
+      box.textContent = msg;
+      box.classList.remove("hidden");
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => {
+        box.classList.add("hidden");
+      }, 2600);
+    }
+
+    window.addEventListener("DOMContentLoaded", () => {
+      buildGridDOM();
+
+      const gw = document.getElementById("gridWrapper");
+      gw.addEventListener("scroll", () => {
+        if (isKanbanMode) return;
+        const nearBottom = gw.scrollTop + gw.clientHeight >= gw.scrollHeight - 220;
+        const nearRight = gw.scrollLeft + gw.clientWidth >= gw.scrollWidth - 220;
+        if (nearBottom) {
+          appendMoreRowsDynamic(30);
+        }
+        if (nearRight) {
+          appendMoreColsDynamic(12);
+        }
+      });
+    });
+  </script>
+  <script src="excel-studio-cloud.js"></script>
+</body>
+</html>
