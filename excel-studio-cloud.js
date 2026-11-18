@@ -1,7 +1,7 @@
 (function () {
   const googleClientId = "1091629496669-5881hgv7d4t01eepcq60u8mmdkguc1cn.apps.googleusercontent.com";
   const firebaseConfig = {
-  apiKey: "AIzaSyA-d_mtHg1Age9ZggTWF3ABhUd_xn2PDKM",
+  apiKey: "AIzaSyA-d_mtHglAge9ZggTWF3ABhUd_xn2PDKM",
   authDomain: "isb-messenger-75093.firebaseapp.com",
   databaseURL: "https://isb-messenger-75093-default-rtdb.asia-southeast1.firebasedatabase.app",
   projectId: "isb-messenger-75093",
